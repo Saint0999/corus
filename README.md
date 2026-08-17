@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Corus
 
-## Getting Started
+Marketing site for a custom mechanical keyboard company.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · React Three Fiber + drei.
 
-First, run the development server:
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm run build   # all four routes prerender as static HTML
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## File structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+public/
+  models/
+    gaming-room-diorama.glb   3D hero asset (2.9 MB, self-lit)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+src/
+  app/
+    layout.tsx                Root layout: fonts, metadata, Header + Footer shell
+    globals.css               Tailwind v4 @theme — all design tokens live here
+    page.tsx                  / — hero (copy + 3D canvas) and supporting strip
+    customise/page.tsx        /customise — wraps the <Configurator> island
+    about/page.tsx            /about
+    features/page.tsx         /features
 
-## Learn More
+  components/
+    layout/
+      Header.tsx              Fixed nav, active-route highlight, mobile menu
+      Footer.tsx
+      Logo.tsx                Keycap wordmark (inline SVG)
+    three/
+      HeroCanvas.tsx          Client boundary: dynamic import with ssr: false
+      Scene.tsx               <Canvas>, lights, <Bounds>, OrbitControls
+      DioramaModel.tsx        useGLTF loader + graph clean-up
+      IdleSway.tsx            useFrame animation (bounded turntable)
+      CanvasLoader.tsx        In-canvas Suspense fallback with real progress
+    customise/
+      Configurator.tsx        Client island: option state + derived price
+    ui/
+      Container.tsx           The single page-gutter definition
 
-To learn more about Next.js, take a look at the following resources:
+  lib/
+    navigation.ts             Nav links (shared by Header and Footer)
+    styles.ts                 Shared class recipes (buttons, panels, eyebrow)
+    scene-config.ts           Every tunable 3D number, measured from the GLB
+    configurator-options.ts   Product option data + pricing
+    use-prefers-reduced-motion.ts
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Design system
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Defined once in `src/app/globals.css` under Tailwind v4's `@theme`, which turns
+each token into utilities (`--color-accent` → `bg-accent`, `text-accent`, …).
 
-## Deploy on Vercel
+| Token             | Value     | Use                         |
+| ----------------- | --------- | --------------------------- |
+| `surface`         | `#1a1a1a` | Page background — always solid, never a gradient |
+| `surface-raised`  | `#212121` | Cards, panels               |
+| `surface-sunken`  | `#141414` | Footer                      |
+| `line`            | `#2e2e2e` | Hairline borders            |
+| `ink`             | `#f5f5f4` | Headings and high-contrast text |
+| `ink-muted`       | `#a1a1aa` | Body copy                   |
+| `accent`          | `#f59e0b` | Amber CTA / hover / active state |
+| `accent-strong`   | `#d97706` | Hover and pressed states    |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes on the 3D hero
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **`.glb`, not `.obj`.** The supplied `.obj` is 10 MB and carries no materials
+  or lighting; the `.glb` is 2.9 MB with materials, textures and lights in one
+  file, and `useGLTF` reads it directly.
+- **The model lights itself.** It ships 14 warm `KHR_lights_punctual` point
+  lights plus emissive LED strips, which is where the golden-hour look comes
+  from. The lights added in `Scene.tsx` are deliberately dim — they only stop
+  the *outside* of the diorama going black. Turn them up and the interior blows
+  out.
+- **`<Bounds fit clip observe>`** frames the model instead of a hand-tuned
+  camera distance, so one config works for a tall mobile strip and a wide
+  desktop column alike.
+- **The room has only two walls.** `CONTROLS.minAzimuthAngle` /
+  `maxAzimuthAngle` fence the camera into the arc where the room is open, and
+  `IdleSway` sweeps inside that arc rather than doing a full 360° turntable.
+- **The 9 × 9 `backdrop_floor` plane is removed** (`DIORAMA.hiddenNodes`) so the
+  diorama floats on the charcoal page over drei's `<ContactShadows>`. Empty that
+  array to get the artist's original staging back.
+- Everything tunable is in `src/lib/scene-config.ts`.
