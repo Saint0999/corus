@@ -96,12 +96,6 @@ export default function HomePage() {
                 container, which silently makes the column far too wide. */}
             <div className="relative -mx-6 h-[36svh] sm:mx-0 lg:-mr-[calc(max(0px,(100vw-72rem)/2)+2.5rem)] lg:h-[calc(100svh-4rem)]">
               <HeroCanvas />
-
-              {/* Affordance hint — nobody knows a canvas is draggable unless
-                  you tell them. */}
-              <p className="pointer-events-none absolute bottom-6 right-6 hidden font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted lg:block">
-                Drag to look around
-              </p>
             </div>
           </div>
         </Container>

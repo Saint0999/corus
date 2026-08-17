@@ -20,8 +20,9 @@ export const DIORAMA = {
 
   /**
    * The room is modelled off-origin. Shifting it by the negated centre puts the
-   * diorama around (0, 0, 0), which lets OrbitControls orbit the model instead
-   * of orbiting empty space beside it.
+   * diorama around (0, 0, 0), which keeps every other number in this file
+   * simple — most importantly the <ContactShadows> plane, which can then sit at
+   * plain `[0, -1.4, 0]` directly beneath the plinth.
    */
   offset: [-1.45, -1.08, -1.45] as Vec3,
 
@@ -42,37 +43,10 @@ export const CAMERA = {
    *
    * Only the *direction* of this vector matters in practice — <Bounds> in
    * Scene.tsx recomputes the distance so the diorama fits whatever shape the
-   * canvas happens to be.
+   * canvas happens to be. Since the scene has no controls, this is the single
+   * angle the diorama is ever seen from: change it here to re-frame the shot.
    */
   position: [7, 4.4, 7] as Vec3,
   /** A long lens (low fov) flattens perspective and reads as "product shot". */
   fov: 35,
-} as const;
-
-export const CONTROLS = {
-  /** Vertical clamp: never below the plinth, never straight down onto it. */
-  minPolarAngle: Math.PI * 0.18,
-  maxPolarAngle: Math.PI * 0.48,
-
-  /**
-   * Horizontal clamp. The room is only open on two of its four sides, so the
-   * camera is fenced into a ~52° arc centred on the diagonal it was authored
-   * to be seen from (45°, i.e. Math.PI / 4). Drag past the fence and you would
-   * be looking at the blank outside of the walls.
-   */
-  minAzimuthAngle: Math.PI * 0.11,
-  maxAzimuthAngle: Math.PI * 0.39,
-  /**
-   * Only used if you re-enable zoom. Kept deliberately wide so they can never
-   * clamp the distance that <Bounds> picks when it fits the model.
-   */
-  minDistance: 6,
-  maxDistance: 40,
-} as const;
-
-/** Idle animation for the model itself — see IdleSway.tsx. */
-export const SWAY = {
-  /** Half the sweep in radians (0.14 ≈ 8°). */
-  amplitude: 0.14,
-  speed: 0.25,
 } as const;

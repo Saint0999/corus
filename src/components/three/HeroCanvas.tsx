@@ -31,7 +31,10 @@ const Scene = dynamic(() => import("./Scene").then((mod) => mod.Scene), {
 
 export function HeroCanvas() {
   return (
-    <div className="h-full w-full">
+    // `pointer-events-none`: the scene is decorative and non-interactive, so
+    // the canvas should never swallow a click, a text selection or a touch
+    // scroll that was meant for the page underneath it.
+    <div className="pointer-events-none h-full w-full">
       <Scene />
     </div>
   );

@@ -35,9 +35,8 @@ src/
       Logo.tsx                Keycap wordmark (inline SVG)
     three/
       HeroCanvas.tsx          Client boundary: dynamic import with ssr: false
-      Scene.tsx               <Canvas>, lights, <Bounds>, OrbitControls
+      Scene.tsx               <Canvas>, lights, <Bounds> camera framing
       DioramaModel.tsx        useGLTF loader + graph clean-up
-      IdleSway.tsx            useFrame animation (bounded turntable)
       CanvasLoader.tsx        In-canvas Suspense fallback with real progress
     customise/
       Configurator.tsx        Client island: option state + derived price
@@ -49,7 +48,6 @@ src/
     styles.ts                 Shared class recipes (buttons, panels, eyebrow)
     scene-config.ts           Every tunable 3D number, measured from the GLB
     configurator-options.ts   Product option data + pricing
-    use-prefers-reduced-motion.ts
 ```
 
 ## Design system
@@ -80,10 +78,12 @@ each token into utilities (`--color-accent` → `bg-accent`, `text-accent`, …)
   out.
 - **`<Bounds fit clip observe>`** frames the model instead of a hand-tuned
   camera distance, so one config works for a tall mobile strip and a wide
-  desktop column alike.
-- **The room has only two walls.** `CONTROLS.minAzimuthAngle` /
-  `maxAzimuthAngle` fence the camera into the arc where the room is open, and
-  `IdleSway` sweeps inside that arc rather than doing a full 360° turntable.
+  desktop column alike, and re-frames it on resize.
+- **The hero is a still shot.** No auto-rotation and no OrbitControls: the
+  diorama is framed once and held there. This is also why the room's blank
+  outer walls never appear — the camera can only be moved by editing
+  `CAMERA.position`. Because nothing changes after load, the canvas runs
+  `frameloop="demand"` and the GPU goes idle once the first frame is drawn.
 - **The 9 × 9 `backdrop_floor` plane is removed** (`DIORAMA.hiddenNodes`) so the
   diorama floats on the charcoal page over drei's `<ContactShadows>`. Empty that
   array to get the artist's original staging back.
