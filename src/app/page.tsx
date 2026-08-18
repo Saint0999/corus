@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { HeroVideo } from "@/components/hero/HeroVideo";
+import {
+  ScrollRevealText,
+  type Segment,
+} from "@/components/statement/ScrollRevealText";
+import { StaggeredText } from "@/components/text/StaggeredText";
 import { Container } from "@/components/ui/Container";
 import { buttonPrimary } from "@/lib/styles";
 
@@ -29,6 +34,37 @@ const SIGNATURE_DETAILS = [
   {
     title: "Serviceable forever",
     body: "Hot-swap sockets, standard keycap profiles and replacement parts kept in stock for the life of the board.",
+  },
+] as const;
+
+/** The hero headline, split so "keystroke" can keep the accent colour. */
+const HERO_HEADLINE: readonly Segment[] = [
+  { text: "Build your perfect" },
+  { text: "keystroke", className: "text-accent" },
+] as const;
+
+/** The hero spec line, bottom right. */
+const HERO_SPEC: readonly Segment[] = [
+  {
+    text:
+      "Lubed switches, a foam damped case, and a sound profile you pick " +
+      "before we ever reach for a screwdriver",
+  },
+] as const;
+
+/**
+ * The statement paragraph, split so the brand name can carry its own colour.
+ * It is data rather than markup because <ScrollRevealText> needs to break the
+ * copy into per-word spans to animate it.
+ */
+const STATEMENT: readonly Segment[] = [
+  { text: "Evoking the look of both classic and modern technology," },
+  { text: "Corus", className: "text-keycap" },
+  {
+    text:
+      "is designed to be a beautiful and functional part of your every day " +
+      "workflow. Uniquely designed keycaps, two programmable knobs, and a " +
+      "feature-filled full-color screen.",
   },
 ] as const;
 
@@ -68,10 +104,16 @@ export default function HomePage() {
           <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between sm:gap-12">
             {/* Bottom left: the headline. */}
             <div className="max-w-md">
-              <h1 className="text-[2.75rem] text-ink sm:text-6xl">
-                Build your perfect{" "}
-                <span className="text-accent">keystroke</span>
-              </h1>
+              <StaggeredText
+                as="h1"
+                segments={HERO_HEADLINE}
+                className="text-[2.75rem] text-ink sm:text-6xl"
+                // ~25 characters at this beat is a 1.5s reveal — slow enough
+                // to watch the headline come into focus, short enough that the
+                // CTA below it is not waiting on it.
+                stagger={55}
+                delay={200}
+              />
 
               <Link href="/customise" className={`${buttonPrimary} mt-7`}>
                 Start customising
@@ -80,11 +122,31 @@ export default function HomePage() {
 
             {/* Bottom right: the spec line. Right-aligned from `sm` up so it
                 anchors to the corner rather than floating mid-air. */}
-            <p className="max-w-xs text-sm font-light leading-relaxed text-ink-muted sm:text-right">
-              Lubed switches, a foam damped case, and a sound profile you pick
-              before we ever reach for a screwdriver
-            </p>
+            <StaggeredText
+              segments={HERO_SPEC}
+              className="max-w-xs text-sm font-light leading-relaxed text-ink-muted sm:text-right"
+              // Starts as the headline lands, and sweeps much faster: this is
+              // four times the character count, so the headline's beat would
+              // drag it out past five seconds.
+              stagger={12}
+              delay={1100}
+            />
           </div>
+        </Container>
+      </section>
+
+      {/* --- Statement ------------------------------------------------------
+          A quiet pause between the hero and the detail strip: one block of
+          copy in the heading serif, nothing competing with it. It starts at
+          40% opacity and lights up word by word as it is scrolled through, so
+          the paragraph is read at the pace the scroll sets. "Corus" is set in
+          the keycap orange so the name carries the product's own colour. */}
+      <section className="py-24 sm:py-32">
+        <Container>
+          <ScrollRevealText
+            className="max-w-3xl font-serif text-[2rem] leading-[1.1] tracking-[-0.02em] text-ink sm:text-[3rem]"
+            segments={STATEMENT}
+          />
         </Container>
       </section>
 

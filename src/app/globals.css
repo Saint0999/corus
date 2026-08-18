@@ -33,6 +33,12 @@
   --color-accent: #cdea1b;
   --color-accent-strong: #b4ce14; /* hover/pressed */
   --color-accent-soft: #def25e; /* small highlights */
+
+  /* Keycap orange. The arrow-key cluster in the hero render measures around
+     #af5230, which is too dark to set type in on black — this is that same
+     hue pushed to full saturation and high lightness so it reads as neon
+     against the page while still pointing at the physical keycaps. */
+  --color-keycap: #ff6b1f;
 }
 
 /* ------------------------------------------------------------------------
@@ -163,6 +169,39 @@ body {
   }
 }
 
+/* ------------------------------------------------------------------------
+ * Staggered character reveal — see components/text/StaggeredText.tsx
+ *
+ * Each character resolves out of a heavy blur rather than sliding: the glyph
+ * stays exactly where it will end up, so a long headline does not shuffle
+ * while it reveals.
+ *
+ * The keyframes live here rather than in the component so the animation is in
+ * the stylesheet the browser already has, and the component only has to supply
+ * each character's `animation-delay`.
+ *
+ * `both` fill mode is what makes the stagger work: the BACKWARDS fill holds a
+ * character at opacity 0 through its delay, so characters that have not had
+ * their turn yet are invisible rather than popping.
+ *
+ * The blur radius is an `em`, so it scales with the type — the same class
+ * reads right on a 56px headline and on 14px body copy.
+ * ---------------------------------------------------------------------- */
+@keyframes stagger-char-in {
+  from {
+    opacity: 0;
+    filter: blur(0.35em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.stagger-char {
+  animation: stagger-char-in 0.5s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -170,5 +209,10 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    /* Delays have to go too, not just durations: a staggered word with `both`
+       fill is held INVISIBLE for the length of its delay, so leaving the
+       delays in place would blank the headline for a second or two. */
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
   }
 }
