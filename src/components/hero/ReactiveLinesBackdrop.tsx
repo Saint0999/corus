@@ -21,7 +21,7 @@ export function ReactiveLinesBackdrop() {
      *
      *  1. Its canvas is created with `{ alpha: false }`, so the drawing buffer
      *     starts as opaque BLACK rather than transparent. Nothing behind it
-     *     shows through — the charcoal page included.
+     *     shows through — the black page included.
      *  2. It starts deferred (`deferStart: true`) and only begins drawing on
      *     the first `mousemove`.
      *
@@ -53,16 +53,16 @@ export function ReactiveLinesBackdrop() {
       style={{ zIndex: 0 }}
       // MUST track `--color-surface` in globals.css. The canvas is opaque and
       // repaints this colour every frame, so any drift shows up as a visible
-      // charcoal-on-charcoal seam where the hero meets the rest of the page.
-      backgroundColor="#1a1a1a"
-      // Warm and very low alpha: this is a texture behind a lit 3D scene, not
-      // a foreground element, and it must never compete with the headline.
-      lineColor="rgba(245, 158, 11, 0.16)"
+      // black-on-black seam where the hero meets the rest of the page.
+      backgroundColor="#000000"
+      // White at 50% opacity.
+      lineColor="rgba(255, 255, 255, 0.5)"
       lineWidth={1}
-      // Fades the field out towards the edges, which keeps the bottom corners
-      // calm enough for the headline and spec line to stay legible.
+      // Fades the field out towards the edges. Pushed hard because white lines
+      // at 0.8 are bright enough to swallow small grey copy, and the headline
+      // and spec line sit in exactly the two bottom corners this darkens.
       fade
-      fadeIntensity={20}
+      fadeIntensity={38}
     />
   );
 }

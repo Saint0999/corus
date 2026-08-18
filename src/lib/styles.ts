@@ -8,7 +8,7 @@
  * giving us one place to edit the button design.
  */
 
-/** Solid amber CTA — the single loudest thing on any page. Use one per screen. */
+/** Solid light-green CTA — the loudest thing on any page. Use one per screen. */
 export const buttonPrimary =
   "inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 " +
   "text-sm font-normal tracking-wide text-surface transition-colors duration-200 " +

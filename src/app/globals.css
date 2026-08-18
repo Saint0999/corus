@@ -8,25 +8,31 @@
  * matching utilities, e.g.
  *   --color-accent  ->  bg-accent / text-accent / border-accent / ring-accent
  *
- * Rule of the brand: the page background is ALWAYS a flat charcoal. Warmth
- * comes from the amber accent and from the 3D diorama's own lighting —
- * never from a background gradient.
+ * Rule of the brand: the page background is ALWAYS flat black. Colour comes
+ * from the light-green accent — never from a background gradient.
  * ---------------------------------------------------------------------- */
 @theme {
-  /* Surfaces — all solid, no gradients anywhere in the system. */
-  --color-surface: #1a1a1a; /* page background */
-  --color-surface-raised: #212121; /* cards, panels */
-  --color-surface-sunken: #141414; /* wells, footer */
-  --color-line: #2e2e2e; /* hairline borders */
+  /* Surfaces — all solid, no gradients anywhere in the system.
+     The page is true black, so the raised/sunken steps are deliberately tiny:
+     on #000 even a few points of lightness separate a card from the page, and
+     anything more reads as a grey box floating on black. The hairline border
+     does most of the work of defining edges. */
+  --color-surface: #000000; /* page background */
+  --color-surface-raised: #0e0e0e; /* cards, panels */
+  --color-surface-sunken: #050505; /* wells, footer */
+  --color-line: #242424; /* hairline borders */
 
-  /* Type */
-  --color-ink: #f5f5f4; /* headings, high contrast on charcoal */
-  --color-ink-muted: #a1a1aa; /* body copy, captions */
+  /* Type — neutral greys to sit alongside the green accent. */
+  --color-ink: #fafafa; /* headings, high contrast on black */
+  --color-ink-muted: #a3a3a3; /* body copy, captions */
 
-  /* Accent — warm amber, tuned to the diorama's golden-hour lighting. */
-  --color-accent: #f59e0b; /* amber-500 */
-  --color-accent-strong: #d97706; /* amber-600, hover/pressed */
-  --color-accent-soft: #fcd34d; /* amber-300, small highlights */
+  /* Accent — chartreuse. Very high luminance against true black, so it stays
+     legible down to the 9px mono labels and takes black text on the solid CTA.
+     The hover/soft steps are the same hue shifted in lightness, so the accent
+     never changes colour as you interact with it. */
+  --color-accent: #cdea1b;
+  --color-accent-strong: #b4ce14; /* hover/pressed */
+  --color-accent-soft: #def25e; /* small highlights */
 }
 
 /* ------------------------------------------------------------------------
@@ -90,7 +96,7 @@ body {
 
 ::selection {
   background-color: var(--color-accent);
-  color: #1a1a1a;
+  color: #000000;
 }
 
 /* One global focus style so every interactive element is keyboard-visible

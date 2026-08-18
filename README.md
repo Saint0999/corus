@@ -52,14 +52,18 @@ each token into utilities (`--color-accent` → `bg-accent`, `text-accent`, …)
 
 | Token             | Value     | Use                         |
 | ----------------- | --------- | --------------------------- |
-| `surface`         | `#1a1a1a` | Page background — always solid, never a gradient |
-| `surface-raised`  | `#212121` | Cards, panels               |
-| `surface-sunken`  | `#141414` | Footer                      |
-| `line`            | `#2e2e2e` | Hairline borders            |
-| `ink`             | `#f5f5f4` | Headings and high-contrast text |
-| `ink-muted`       | `#a1a1aa` | Body copy                   |
-| `accent`          | `#f59e0b` | Amber CTA / hover / active state |
-| `accent-strong`   | `#d97706` | Hover and pressed states    |
+| `surface`         | `#000000` | Page background — always solid, never a gradient |
+| `surface-raised`  | `#0e0e0e` | Cards, panels               |
+| `surface-sunken`  | `#050505` | Footer                      |
+| `line`            | `#242424` | Hairline borders            |
+| `ink`             | `#fafafa` | Headings and high-contrast text |
+| `ink-muted`       | `#a3a3a3` | Body copy                   |
+| `accent`          | `#cdea1b` | Chartreuse CTA / hover / active state |
+| `accent-strong`   | `#b4ce14` | Hover and pressed states    |
+
+On true black the raised/sunken steps are deliberately tiny — a few points of
+lightness is enough to separate a card from the page, and more reads as a grey
+box floating on black. The hairline border does most of the edge definition.
 
 ## Typography
 
@@ -165,6 +169,7 @@ curved lines. Added with `npx originkit@latest add reactive-lines`.
   type-checks it.
 - Everything this site changes about it lives in
   `src/components/hero/ReactiveLinesBackdrop.tsx`, through props and one effect.
+- Lines are white at 50% opacity on a black fill.
 - **`backgroundColor` must track `--color-surface`.** The canvas is created with
   `{ alpha: false }`, so it is opaque and repaints that colour every frame. Any
   drift shows up as a visible seam where the hero meets the rest of the page.
