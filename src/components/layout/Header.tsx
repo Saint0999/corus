@@ -48,7 +48,7 @@ export function Header() {
                 // `aria-current` is how assistive tech announces "you are here";
                 // colour alone would not be enough.
                 aria-current={isActive ? "page" : undefined}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200 hover:text-accent ${
+                className={`rounded-full px-4 py-2 text-sm font-normal transition-colors duration-200 hover:text-accent ${
                   isActive ? "text-accent" : "text-ink-muted"
                 }`}
               >
@@ -59,7 +59,7 @@ export function Header() {
 
           <Link
             href="/customise"
-            className="ml-3 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-surface transition-colors duration-200 hover:bg-accent-strong"
+            className="ml-3 rounded-full bg-accent px-5 py-2 text-sm font-normal text-surface transition-colors duration-200 hover:bg-accent-strong"
           >
             Build yours
           </Link>
@@ -108,7 +108,7 @@ export function Header() {
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
                 aria-current={pathname === link.href ? "page" : undefined}
-                className={`border-b border-line/60 py-4 text-base font-medium last:border-b-0 ${
+                className={`border-b border-line/60 py-4 text-base font-normal last:border-b-0 ${
                   pathname === link.href ? "text-accent" : "text-ink"
                 }`}
               >

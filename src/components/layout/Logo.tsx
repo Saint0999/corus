@@ -27,7 +27,7 @@ export function Logo() {
         {/* keycap top face */}
         <rect x="6.5" y="7" width="11" height="8" rx="2" fill="currentColor" />
       </svg>
-      <span className="text-lg font-semibold tracking-tight text-ink">
+      <span className="text-lg font-normal tracking-tight text-ink">
         Corus
       </span>
     </span>

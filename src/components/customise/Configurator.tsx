@@ -92,7 +92,7 @@ export function Configurator() {
                       className="sr-only"
                     />
                     <span className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-ink">
+                      <span className="text-sm font-normal text-ink">
                         {option.label}
                       </span>
                       <span
@@ -122,7 +122,7 @@ export function Configurator() {
           `sticky` keeps the price in view while the options scroll past. */}
       <aside className="lg:sticky lg:top-24 lg:h-fit">
         <div className="rounded-2xl border border-line bg-surface-raised p-6">
-          <h2 className="text-lg font-semibold text-ink">Your build</h2>
+          <h2 className="text-xl text-ink">Your build</h2>
 
           <dl className="mt-6 divide-y divide-line border-y border-line">
             {chosen.map((entry) => (
@@ -146,7 +146,7 @@ export function Configurator() {
                 a selection changes, since nothing else moves on screen. */}
             <span
               aria-live="polite"
-              className="text-3xl font-semibold text-accent"
+              className="text-3xl font-normal text-accent"
             >
               {priceFormatter.format(total)}
             </span>

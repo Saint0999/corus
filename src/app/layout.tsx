@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { fontMono, fontSans, fontSerif } from "./fonts";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import "./globals.css";
-
-// next/font self-hosts the font files at build time (no request to Google at
-// runtime) and exposes them as CSS variables, which globals.css maps onto
-// Tailwind's `font-sans` / `font-mono` tokens.
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   // `%s` is replaced by each page's own `title`; the home page uses `default`.
@@ -38,7 +25,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // Each font exposes a CSS variable; globals.css composes them into the
+      // `--font-serif` / `--font-sans` / `--font-mono` stacks. Adding the
+      // licensed PP families later means adding their `.variable` here too.
+      className={`${fontSerif.variable} ${fontSans.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-surface font-sans text-ink">
         <Header />

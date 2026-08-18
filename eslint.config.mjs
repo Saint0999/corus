@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored third-party components, kept byte-for-byte as their registry
+    // ships them so a re-add or upgrade applies cleanly. They are excluded
+    // from lint because reformatting them to our style would be exactly the
+    // local modification we want to avoid — TypeScript still type-checks them.
+    "src/components/originkit/**",
   ]),
 ]);
 

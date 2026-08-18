@@ -52,10 +52,10 @@ export default function FeaturesPage() {
       <section className="border-b border-line py-20 sm:py-24">
         <Container>
           <p className={eyebrow}>Features</p>
-          <h1 className="mt-5 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+          <h1 className="mt-5 max-w-2xl text-5xl text-ink sm:text-6xl">
             Nothing on the board that isn&apos;t doing work.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted">
+          <p className="mt-6 max-w-xl text-base font-light leading-relaxed text-ink-muted">
             Corus boards are built around a short list of decisions that
             actually change how a keyboard feels. Here is the whole list.
           </p>
@@ -70,7 +70,7 @@ export default function FeaturesPage() {
                 key={feature.title}
                 className={`${panel} transition-colors duration-200 hover:border-accent/60`}
               >
-                <h2 className="text-base font-semibold text-ink">
+                <h2 className="text-xl text-ink">
                   {feature.title}
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-ink-muted">
@@ -86,7 +86,7 @@ export default function FeaturesPage() {
         <Container className="grid gap-12 lg:grid-cols-[1fr_1.2fr]">
           <div>
             <p className={eyebrow}>Specification</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-ink">
+            <h2 className="mt-4 text-4xl text-ink">
               The numbers
             </h2>
             <Link href="/customise" className={`${buttonPrimary} mt-8`}>

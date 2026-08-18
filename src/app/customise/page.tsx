@@ -13,8 +13,6 @@ export const metadata: Metadata = {
  * Customise page — a Server Component that renders one interactive island.
  *
  * The heading and copy are static HTML; only <Configurator> ships JavaScript.
- * To put the diorama beside the configurator later, drop <HeroCanvas /> into
- * the grid here — it is already a self-contained client boundary.
  */
 export default function CustomisePage() {
   return (
@@ -22,10 +20,10 @@ export default function CustomisePage() {
       <section className="border-b border-line py-20 sm:py-24">
         <Container>
           <p className={eyebrow}>Customise</p>
-          <h1 className="mt-5 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+          <h1 className="mt-5 max-w-2xl text-5xl text-ink sm:text-6xl">
             Specify it once. We build it once.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted">
+          <p className="mt-6 max-w-xl text-base font-light leading-relaxed text-ink-muted">
             Four decisions, no upsells. Everything you pick here is set before
             assembly starts, so nothing has to be pulled apart later.
           </p>

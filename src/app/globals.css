@@ -29,12 +29,52 @@
   --color-accent-soft: #fcd34d; /* amber-300, small highlights */
 }
 
-/* `@theme inline` is used for tokens whose value is another CSS variable
- * (here: the variables next/font injects). Without `inline`, Tailwind would
- * emit a var pointing at a var and the font would resolve too late. */
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ------------------------------------------------------------------------
+ * Typography — 100% free Google Fonts
+ *
+ * Instrument Serif (400) for headings, Inter (300/400) for everything else,
+ * Geist Mono (400) for the small uppercase labels.
+ *
+ * The families are loaded via `next/font` in src/app/fonts.ts, which self-hosts
+ * them at build time. If you would rather load them straight from Google, the
+ * equivalent is this single @import as the FIRST line of this file:
+ *
+ *   @import url("https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@300;400&family=Geist+Mono:wght@400&display=swap");
+ *
+ * ...or the equivalent <link> tags in app/layout.tsx:
+ *
+ *   <link rel="preconnect" href="https://fonts.googleapis.com" />
+ *   <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+ *   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@300;400&family=Geist+Mono:wght@400&display=swap" rel="stylesheet" />
+ *
+ * Either works, and the stacks below need no changes for it — the literal
+ * family names are already the fallback inside each `var()`. next/font is kept
+ * as the default because an @import is render-blocking, costs an extra DNS +
+ * TLS handshake to a third party, and shifts layout when the webfont swaps in.
+ *
+ * Note this is a plain `@theme`, NOT `@theme inline`. `inline` substitutes a
+ * token's value into the generated utilities and never emits the custom
+ * property, so `var(--font-serif)` would be undefined everywhere else —
+ * including the heading rules below, which need the raw value.
+ *
+ * Each family is written `var(--next-font-var, "Literal Name")`. The fallback
+ * inside `var()` is load-bearing: an undefined variable with no fallback makes
+ * the ENTIRE font-family declaration invalid at computed-value time, collapsing
+ * the stack to the browser default instead of moving on to the next family.
+ * It is also what lets the @import above work as a drop-in replacement.
+ * ---------------------------------------------------------------------- */
+@theme {
+  /* Headings: high-contrast didone serif. */
+  --font-serif: var(--font-instrument-serif, "Instrument Serif"), Didot,
+    Georgia, "Times New Roman", serif;
+
+  /* Subheadings, body and UI: neutral grotesque. */
+  --font-sans: var(--font-inter, "Inter"), system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+
+  /* Small uppercase labels and spec tables. */
+  --font-mono: var(--font-geist-mono, "Geist Mono"), ui-monospace,
+    SFMono-Regular, Menlo, monospace;
 }
 
 html {
@@ -59,6 +99,62 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* ------------------------------------------------------------------------
+ * Heading system
+ *
+ * Set once here rather than repeated as utilities on every heading, so the
+ * hierarchy stays consistent across pages. Sizes stay in the markup (they are
+ * genuinely per-context); weight, tracking and leading do not.
+ *
+ * The numbers are what give a high-contrast serif its editorial feel: display
+ * type wants NEGATIVE tracking and leading close to 1, because the letterforms
+ * already carry the contrast. The same settings on body copy would be
+ * unreadable, which is why they are scoped to headings only.
+ * ---------------------------------------------------------------------- */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    /* Evens out the last line instead of leaving one orphaned word. */
+    text-wrap: balance;
+  }
+
+  /* Optical sizing: tracking is tightened as the type gets larger and loosened
+     as it gets smaller. A high-contrast serif set at -0.038em looks decisive at
+     56px and cramped at 16px, so the three levels are NOT given the same value.
+     Line height moves the same way — display type wants close to 1, small
+     headings need room to breathe. */
+  /* 400 at display size: a didone's hairlines are the whole point, and a
+     heavier weight thickens them until the contrast is lost. */
+  h1 {
+    font-weight: 400;
+    letter-spacing: -0.032em;
+    line-height: 1.04;
+  }
+
+  /* Smaller headings step UP to 600. The same 400 that looks elegant at 60px
+     turns spindly and hard to read at 18px, because those hairlines do not
+     scale down gracefully. */
+
+  h2 {
+    font-weight: 600;
+    letter-spacing: -0.018em;
+    line-height: 1.12;
+  }
+
+  h3 {
+    font-weight: 600;
+    letter-spacing: -0.008em;
+    line-height: 1.25;
+  }
+
+  /* Body copy gets the opposite treatment: normal tracking, generous leading. */
+  p {
+    text-wrap: pretty;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

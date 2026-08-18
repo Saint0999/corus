@@ -37,10 +37,10 @@ export default function AboutPage() {
       <section className="border-b border-line py-20 sm:py-24">
         <Container>
           <p className={eyebrow}>About</p>
-          <h1 className="mt-5 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+          <h1 className="mt-5 max-w-2xl text-5xl text-ink sm:text-6xl">
             A small workshop that only makes keyboards.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted">
+          <p className="mt-6 max-w-xl text-base font-light leading-relaxed text-ink-muted">
             Corus started because the boards we wanted did not exist at any
             price: quiet, heavy, repairable, and specified by the person typing
             on them. So we started building them to order, and never stopped.
@@ -53,7 +53,7 @@ export default function AboutPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             {PRINCIPLES.map((principle) => (
               <article key={principle.title} className={panel}>
-                <h2 className="text-base font-semibold text-ink">
+                <h2 className="text-xl text-ink">
                   {principle.title}
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-ink-muted">
@@ -69,7 +69,7 @@ export default function AboutPage() {
         <Container className="grid gap-12 lg:grid-cols-[1fr_1.2fr]">
           <div>
             <p className={eyebrow}>History</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-ink">
+            <h2 className="mt-4 text-4xl text-ink">
               How we got here
             </h2>
             <Link href="/features" className={`${buttonSecondary} mt-8`}>
