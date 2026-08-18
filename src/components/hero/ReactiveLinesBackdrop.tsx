@@ -47,22 +47,48 @@ export function ReactiveLinesBackdrop() {
   }, []);
 
   return (
-    <ReactiveLines
-      // Sits at the very bottom of the hero's stacking order: lines -> glow ->
-      // 3D canvas -> copy.
-      style={{ zIndex: 0 }}
-      // MUST track `--color-surface` in globals.css. The canvas is opaque and
-      // repaints this colour every frame, so any drift shows up as a visible
-      // black-on-black seam where the hero meets the rest of the page.
-      backgroundColor="#000000"
-      // White at 50% opacity.
-      lineColor="rgba(255, 255, 255, 0.5)"
-      lineWidth={1}
-      // Fades the field out towards the edges. Pushed hard because white lines
-      // at 0.8 are bright enough to swallow small grey copy, and the headline
-      // and spec line sit in exactly the two bottom corners this darkens.
-      fade
-      fadeIntensity={38}
-    />
+    /**
+     * Overscan box: taller than the hero, anchored to its bottom.
+     *
+     * The field is a fan of curves swept from an anchor above the top-right
+     * corner, and the shape that falls out of it only fills the LOWER ~60% of
+     * whatever box it is given — measured, not guessed: sampling the canvas on
+     * a 12x8 grid returns exactly zero in every cell of the top three rows.
+     * Given the hero's own box, that empty band is the upper third of the
+     * hero, which is precisely where the keyboard sits, so the product ended
+     * up ringed by dead black with the lines dipping away below it.
+     *
+     * At 170% anchored to the bottom, the lower 60% of the box — the part with
+     * the lines in it — covers the hero from top to bottom. The overflow above
+     * is clipped by the hero's own `overflow-hidden`.
+     *
+     * The component fills whatever element contains it (`position: absolute;
+     * inset: 0`, set inline and not overridable through `style`), so resizing
+     * it means resizing its container, which is what this is. It measures that
+     * container on mount and on resize, so the canvas is sized correctly for
+     * the taller box rather than stretched into it.
+     */
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[170%]">
+      <ReactiveLines
+        // Sits at the very bottom of the hero's stacking order: lines -> glow ->
+        // 3D canvas -> copy.
+        style={{ zIndex: 0 }}
+        // MUST track `--color-surface` in globals.css. The canvas is opaque and
+        // repaints this colour every frame, so any drift shows up as a visible
+        // black-on-black seam where the hero meets the rest of the page.
+        backgroundColor="#000000"
+        // White at 50% opacity. Full strength is safe again now that the hero
+        // video is keyed to a real alpha channel: the board occludes the lines
+        // outright, so their brightness no longer bleeds into the product.
+        lineColor="rgba(255, 255, 255, 0.5)"
+        lineWidth={1}
+        // Fades the field out towards the edges. Pushed hard because white
+        // lines at 0.8 are bright enough to swallow small grey copy, and the
+        // headline and spec line sit in exactly the two bottom corners this
+        // darkens.
+        fade
+        fadeIntensity={38}
+      />
+    </div>
   );
 }

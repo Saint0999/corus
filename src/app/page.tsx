@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { ReactiveLinesBackdrop } from "@/components/hero/ReactiveLinesBackdrop";
+import { HeroVideo } from "@/components/hero/HeroVideo";
 import { Container } from "@/components/ui/Container";
 import { buttonPrimary } from "@/lib/styles";
 
 /**
  * Home page.
  *
- * This stays a Server Component: only the reactive-lines backdrop crosses into
- * the client, so the headline and CTA are in the initial HTML — good for LCP
- * and for crawlers.
+ * This stays a Server Component: only the hero video crosses into the client,
+ * so the headline and CTA are in the initial HTML — good for LCP and for
+ * crawlers.
  */
 
 const HERO_STATS = [
@@ -41,13 +41,27 @@ export default function HomePage() {
   return (
     <>
       {/* --- Hero ------------------------------------------------------------
-          A full-bleed cursor-reactive line field, with the copy anchored to the
-          bottom corners: headline left, spec line right. */}
-      <section className={`relative flex ${HERO_HEIGHT} flex-col overflow-hidden`}>
-        {/* Backdrop: Originkit's cursor-reactive line field, underneath
-            everything else in the hero. Its canvas is opaque, so it has to be
-            the first child — anything painted before it would be hidden. */}
-        <ReactiveLinesBackdrop />
+          A full-bleed product video, with the copy anchored to the bottom
+          corners: headline left, spec line right.
+
+          `overflow-hidden` is load-bearing: on a portrait viewport the video
+          is scaled past the edges of this box, and this is what crops it. */}
+      <section
+        className={`relative flex ${HERO_HEIGHT} flex-col overflow-hidden`}
+      >
+        {/* Backdrop: the board rendered on black. Its background matches
+            `--color-surface`, so the seam where it meets the rest of the page
+            is invisible. */}
+        <HeroVideo />
+
+        {/* Legibility scrim. The render is near-black in both bottom corners
+            on a wide screen, but a narrow viewport reframes it — this
+            guarantees the headline and spec line keep their contrast at every
+            width. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-2/5 bg-gradient-to-t from-surface via-surface/45 to-transparent"
+        />
 
         {/* Copy layer. `mt-auto` pins it to the bottom of the flex column. */}
         <Container className="relative z-10 mt-auto pb-12">
@@ -67,7 +81,7 @@ export default function HomePage() {
             {/* Bottom right: the spec line. Right-aligned from `sm` up so it
                 anchors to the corner rather than floating mid-air. */}
             <p className="max-w-xs text-sm font-light leading-relaxed text-ink-muted sm:text-right">
-              lubed switches, a foam damped case, and a sound profile you pick
+              Lubed switches, a foam damped case, and a sound profile you pick
               before we ever reach for a screwdriver
             </p>
           </div>
