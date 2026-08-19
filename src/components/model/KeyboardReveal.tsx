@@ -38,7 +38,9 @@ import { ReactiveLinesBackdrop } from "@/components/hero/ReactiveLinesBackdrop";
  *
  * The lines are the same field the hero was built on, so the board lands on
  * the site's own backdrop rather than on a bare rectangle of black, and the
- * vignette closes the whole thing back down into the page.
+ * vignette closes the whole thing back down into the page — then lifts a
+ * little the moment the board is square-on, once holding the eye in the middle
+ * of the frame has stopped being the point.
  *
  * An off-white board on true black is a hard thing to look at: with nothing
  * else lit on the page, the eye reads the keycaps as a light source rather
@@ -159,6 +161,19 @@ const FADE_START = 0.9;
 const FADE_END = 0.35;
 
 /**
+ * The vignette lifts a little once the board is square to the camera: the
+ * frame is doing its job while the board is turning — holding the eye in the
+ * middle — and the moment the pose settles it gets out of the way so the ends
+ * of the board and the line field behind it come back up.
+ *
+ * `HOLD` is the fraction of the stand-up it stays at full strength for, so the
+ * lift reads as a beat AFTER the rotation rather than as something fading the
+ * whole way through it. `DROP` is how much of it goes.
+ */
+const VIGNETTE_HOLD = 0.78;
+const VIGNETTE_DROP = 0.3;
+
+/**
  * Edge falloff, as a fraction of the surface's own lit colour removed where it
  * turns fully away from the camera, and the curve it is ramped in on. This is
  * deliberately the OPPOSITE of a physical fresnel rim — the point is to take
@@ -199,6 +214,8 @@ export function KeyboardReveal() {
   const fadeRef = useRef(0);
   /** The glow behind the board, faded in step with it by the same rAF. */
   const glowRef = useRef<HTMLDivElement>(null);
+  /** The vignette, lifted by that same rAF once the board is square-on. */
+  const vignetteRef = useRef<HTMLDivElement>(null);
   const near = useNearViewport(sectionRef);
 
   return (
@@ -287,6 +304,7 @@ export function KeyboardReveal() {
                 progressRef={progressRef}
                 fadeRef={fadeRef}
                 glowRef={glowRef}
+                vignetteRef={vignetteRef}
               />
             </Suspense>
           </Canvas>
@@ -297,16 +315,24 @@ export function KeyboardReveal() {
           free, it is resolution-independent, and it composites against the
           page's own black instead of a second one. It sits ABOVE the canvas
           and is `pointer-events-none`, so it darkens without intercepting
-          anything. The centre stop is wide enough to leave the keycaps and
-          the screen untouched — only the far ends of the board and the empty
-          corners are pulled down. */}
+          anything.
+
+          The ellipse is wide and its centre sits above the middle of the box,
+          where the board does — a vignette centred on the box itself crushes
+          the top corners, which are further from its centre than the bottom
+          ones are once the board has been lifted. The outermost stop stops
+          short of solid black for the same reason: the corners should settle
+          INTO the page, not punch a hole darker than it.
+
+          Its opacity is written by the scroll rAF — see VIGNETTE_HOLD. */}
       <div
+        ref={vignetteRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-10"
         style={{
           background:
-            "radial-gradient(ellipse 78% 62% at 50% 50%, transparent 0%, " +
-            "rgba(0,0,0,0.35) 62%, rgba(0,0,0,0.8) 84%, #000 100%)",
+            "radial-gradient(ellipse 92% 78% at 50% 44%, transparent 0%, " +
+            "rgba(0,0,0,0.16) 60%, rgba(0,0,0,0.46) 84%, rgba(0,0,0,0.74) 100%)",
         }}
       />
     </section>
@@ -318,15 +344,24 @@ function Scene({
   progressRef,
   fadeRef,
   glowRef,
+  vignetteRef,
 }: {
   sectionRef: React.RefObject<HTMLElement | null>;
   progressRef: React.RefObject<number>;
   fadeRef: React.RefObject<number>;
   glowRef: React.RefObject<HTMLDivElement | null>;
+  vignetteRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const invalidate = useThree((state) => state.invalidate);
 
-  useScrollProgress(sectionRef, progressRef, fadeRef, glowRef, invalidate);
+  useScrollProgress(
+    sectionRef,
+    progressRef,
+    fadeRef,
+    glowRef,
+    vignetteRef,
+    invalidate,
+  );
 
   // Both the entry fade and the brighten-as-it-stands-up are done with
   // EXPOSURE, not with material opacity. Fading a hundred-odd opaque meshes by
@@ -577,6 +612,7 @@ function useScrollProgress(
   progressRef: React.RefObject<number>,
   fadeRef: React.RefObject<number>,
   glowRef: React.RefObject<HTMLDivElement | null>,
+  vignetteRef: React.RefObject<HTMLDivElement | null>,
   invalidate: () => void,
 ) {
   useEffect(() => {
@@ -590,6 +626,9 @@ function useScrollProgress(
       progressRef.current = 1;
       fadeRef.current = 1;
       if (glowRef.current) glowRef.current.style.opacity = "1";
+      if (vignetteRef.current) {
+        vignetteRef.current.style.opacity = String(1 - VIGNETTE_DROP);
+      }
       invalidate();
       return;
     }
@@ -627,6 +666,18 @@ function useScrollProgress(
         glowRef.current.style.opacity = String(fadeRef.current);
       }
 
+      // The vignette holds at full strength for the whole turn and only lets
+      // go over the last stretch of it, so the lift lands as the board squares
+      // up rather than tracking the scroll the way everything else here does.
+      if (vignetteRef.current) {
+        const settled = Math.min(
+          1,
+          Math.max(0, (tilt(progressRef) - VIGNETTE_HOLD) / (1 - VIGNETTE_HOLD)),
+        );
+        const eased = 0.5 - Math.cos(Math.PI * settled) / 2;
+        vignetteRef.current.style.opacity = String(1 - VIGNETTE_DROP * eased);
+      }
+
       invalidate();
     };
 
@@ -643,7 +694,7 @@ function useScrollProgress(
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [sectionRef, progressRef, fadeRef, glowRef, invalidate]);
+  }, [sectionRef, progressRef, fadeRef, glowRef, vignetteRef, invalidate]);
 }
 
 /**
