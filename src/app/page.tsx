@@ -115,7 +115,13 @@ export default function HomePage() {
                 delay={200}
               />
 
-              <Link href="/customise" className={`${buttonPrimary} mt-7`}>
+              {/* Lands as the last characters of the headline resolve, in the
+                  same blur-to-focus move — see `.blur-fade-in` in globals.css. */}
+              <Link
+                href="/customise"
+                className={`${buttonPrimary} blur-fade-in mt-7`}
+                style={{ animationDelay: "1650ms" }}
+              >
                 Start customising
               </Link>
             </div>
