@@ -202,6 +202,31 @@ const CASE_COLOR = "#8b9199";
 const CASE_METALNESS = 0.52;
 const CASE_ROUGHNESS = 0.62;
 
+/**
+ * The keycaps, taken from warm matte off-white to a light polished silver.
+ *
+ * The .glb authors them as a 0.74-roughness cream, which is a moulded-plastic
+ * finish: it scatters everything and has no highlight to speak of. The look
+ * being matched is the opposite — a bright, near-neutral cap with a tight
+ * specular that travels across the row as the board turns. That is roughness
+ * doing the work, not colour: the value only comes up a little and cools off,
+ * while the roughness drops by more than half so each cap carries a highlight.
+ *
+ * Metalness stays low. These read as polished, not machined; pushing it up
+ * with only two lightformers for an environment turns them grey and dead,
+ * because a metal has no diffuse to fall back on when there is nothing around
+ * it to reflect. The environment intensity is lifted instead, which is what
+ * puts the sheen on without touching the legends.
+ *
+ * The name is the material's, so the orange accent caps — esc and the arrow
+ * cluster — are untouched and keep their own finish.
+ */
+const KEYCAP_MATERIAL = "keycap-offwhite";
+const KEYCAP_COLOR = "#d7dade";
+const KEYCAP_METALNESS = 0.3;
+const KEYCAP_ROUGHNESS = 0.26;
+const KEYCAP_ENV = 1.9;
+
 export function KeyboardReveal() {
   const sectionRef = useRef<HTMLElement>(null);
   /**
@@ -402,10 +427,14 @@ function Scene({
       {/* Rendered into a cubemap once, on mount — no HDR is fetched, so this
           costs one small offscreen pass and nothing over the network. */}
       <Environment resolution={128} frames={1}>
+        {/* The broad one, above and in FRONT of the board. Square-on, this is
+            what the polished caps actually reflect — the sheen across their
+            faces is this panel, not a directional light, which is why it is
+            worth its size and intensity. */}
         <Lightformer
-          intensity={1.4}
-          position={[0, 3, 2]}
-          scale={[8, 3, 1]}
+          intensity={2.4}
+          position={[0, 3.2, 2.5]}
+          scale={[10, 5, 1]}
           color="#ffffff"
         />
         <Lightformer
@@ -490,6 +519,7 @@ function Board({ progressRef }: { progressRef: React.RefObject<number> }) {
       const material: Material | Material[] = object.material;
       for (const one of Array.isArray(material) ? material : [material]) {
         matteSilverCase(one);
+        shinyKeycaps(one);
         edgeFalloff(one);
       }
     });
@@ -530,6 +560,22 @@ function matteSilverCase(material: Material) {
   // The environment is two lightformers rather than a real studio, so the
   // silver needs the reflection pushed a little to read as metal at all.
   material.envMapIntensity = 1.25;
+}
+
+/**
+ * Polishes the keycaps. Same contract as `matteSilverCase`: named material
+ * only, absolute values, safe to re-apply.
+ */
+function shinyKeycaps(material: Material) {
+  if (material.name !== KEYCAP_MATERIAL) return;
+  if (!(material instanceof MeshStandardMaterial)) return;
+
+  // Multiplied against the legend texture, so this tints the cap without
+  // touching the printing on it.
+  material.color = new Color(KEYCAP_COLOR);
+  material.metalness = KEYCAP_METALNESS;
+  material.roughness = KEYCAP_ROUGHNESS;
+  material.envMapIntensity = KEYCAP_ENV;
 }
 
 /**
