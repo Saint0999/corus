@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HeroVideo } from "@/components/hero/HeroVideo";
 import { KeyboardReveal } from "@/components/model/KeyboardReveal";
+import { SmoothScroll } from "@/components/scroll/SmoothScroll";
 import {
   ScrollRevealText,
   type Segment,
@@ -92,6 +93,10 @@ const HERO_HEIGHT = "min-h-[calc(100svh-4rem)]";
 export default function HomePage() {
   return (
     <>
+      {/* Smooth scrolling, scoped to this route by being mounted here rather
+          than in the root layout — see the component. */}
+      <SmoothScroll />
+
       {/* --- Hero ------------------------------------------------------------
           A full-bleed product video, with the copy anchored to the bottom
           corners: headline left, spec line right.
