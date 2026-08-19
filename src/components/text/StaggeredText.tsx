@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ElementType } from "react";
+import { Fragment, type ElementType, type ReactNode } from "react";
 
 /**
  * Staggered entrance reveal: the copy is split into individual characters, each
@@ -38,7 +38,7 @@ export function StaggeredText({
   delay = 0,
 }: {
   segments: readonly Segment[];
-  as?: ElementType;
+  as?: ElementType<{ className?: string; children?: ReactNode }>;
   className?: string;
   /** Beat between consecutive characters, in ms. */
   stagger?: number;

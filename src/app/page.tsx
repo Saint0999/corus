@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeroVideo } from "@/components/hero/HeroVideo";
+import { KeyboardReveal } from "@/components/model/KeyboardReveal";
 import {
   ScrollRevealText,
   type Segment,
@@ -147,7 +148,11 @@ export default function HomePage() {
           40% opacity and lights up word by word as it is scrolled through, so
           the paragraph is read at the pace the scroll sets. "Corus" is set in
           the keycap orange so the name carries the product's own colour. */}
-      <section className="py-24 sm:py-32">
+      {/* The bottom padding is deliberately much smaller than the top: the
+          model section that follows opens on a screenful of black above the
+          board, and stacking a full `py-32` on top of that read as a hole in
+          the page rather than as breathing room. */}
+      <section className="pt-24 pb-10 sm:pt-32 sm:pb-12">
         <Container>
           <ScrollRevealText
             className="max-w-3xl font-serif text-[2rem] leading-[1.1] tracking-[-0.02em] text-ink sm:text-[3rem]"
@@ -155,6 +160,14 @@ export default function HomePage() {
           />
         </Container>
       </section>
+
+      {/* --- Model reveal ---------------------------------------------------
+          The paragraph above describes the board; this is where the reader
+          gets to look at it. A two-viewport-tall section with a pinned canvas:
+          the board holds still on screen and stands up from a three-quarter
+          tilt to face-on as the scroll runs through. Client-only and loaded on
+          approach — see the component. */}
+      <KeyboardReveal />
 
       {/* --- Supporting strip --- */}
       <section className="border-t border-line py-16 sm:py-20">

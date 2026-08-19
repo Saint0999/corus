@@ -11,7 +11,38 @@ import ReactiveLines from "@/components/originkit/reactive-lines";
  * registry applies cleanly. Everything this site needs to change about it is
  * done from out here, through props and one mount effect.
  */
-export function ReactiveLinesBackdrop() {
+/**
+ * The box the field is drawn into, as Tailwind classes.
+ *
+ * The component fills whatever element contains it (`position: absolute;
+ * inset: 0`, set inline and not overridable through `style`), so the ONLY way
+ * to resize, move or rotate the field is to resize, move or rotate this box —
+ * which is why it is a prop rather than something a caller could reach with a
+ * `style` override.
+ *
+ * The default is the hero's: see the note on the element below for where the
+ * 170% comes from.
+ */
+const HERO_BOX = "pointer-events-none absolute inset-x-0 bottom-0 h-[170%]";
+
+export function ReactiveLinesBackdrop({
+  className = HERO_BOX,
+  minLines,
+  maxLines,
+}: {
+  className?: string;
+  /**
+   * The two ends of the line count. The field interpolates between them on
+   * pointer Y — `minLines` is the count at the bottom of the box, `maxLines`
+   * at the top, and the component reads them as a RANGE rather than as a
+   * floor and a ceiling, so which one is larger does not matter.
+   *
+   * Left undefined here so the vendored defaults (108/15) stand: that density
+   * is what the hero was tuned against.
+   */
+  minLines?: number;
+  maxLines?: number;
+} = {}) {
   useEffect(() => {
     /**
      * Kick the animation loop once on mount.
@@ -68,7 +99,7 @@ export function ReactiveLinesBackdrop() {
      * container on mount and on resize, so the canvas is sized correctly for
      * the taller box rather than stretched into it.
      */
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[170%]">
+    <div className={className}>
       <ReactiveLines
         // Sits at the very bottom of the hero's stacking order: lines -> glow ->
         // 3D canvas -> copy.
@@ -82,6 +113,8 @@ export function ReactiveLinesBackdrop() {
         // outright, so their brightness no longer bleeds into the product.
         lineColor="rgba(255, 255, 255, 0.5)"
         lineWidth={1}
+        minLines={minLines}
+        maxLines={maxLines}
         // Fades the field out towards the edges. Pushed hard because white
         // lines at 0.8 are bright enough to swallow small grey copy, and the
         // headline and spec line sit in exactly the two bottom corners this
