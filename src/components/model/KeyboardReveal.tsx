@@ -82,11 +82,40 @@ const TILT_START = 64;
 const TILT_END = 90;
 
 /**
- * The model is scaled so its longest edge is this many world units, which
- * makes the framing independent of what units the .glb happens to be authored
- * in — swap in a re-export at a different scale and nothing here changes.
+ * The model is normalised so its longest edge is this many world units, which
+ * makes everything downstream independent of what units the .glb happens to be
+ * authored in — swap in a re-export at a different scale and nothing here
+ * changes. The board is then scaled off this by the framing below; this is a
+ * reference length, not a size.
  */
 const MODEL_SPAN = 3.2;
+
+/**
+ * Framing. The board is sized to the VIEWPORT every render, not to a fixed
+ * scale with a ceiling — a fixed scale is why it read as a stamp on a large
+ * display and as a crop on a phone.
+ *
+ * Two limits, and the tighter one wins:
+ *
+ *  - `FRAME_WIDTH`: the fraction of the visible width the board may span. This
+ *    is what governs on anything from a phone up to a normal laptop, where the
+ *    frame is not much wider than it is tall.
+ *  - `FRAME_HEIGHT`: the fraction of the visible height the board may occupy
+ *    once it is STANDING UP, which is when it is at its tallest on screen. On
+ *    a wide or ultrawide display the width limit alone would size the board
+ *    past the top of the frame, so this is what takes over there. The lift is
+ *    part of the sum because the board is not centred (see MODEL_LIFT) — it is
+ *    the raised top edge that runs out of room first.
+ */
+const FRAME_WIDTH = 0.82;
+const FRAME_HEIGHT = 0.86;
+
+/**
+ * The board's on-screen height when erect, as a fraction of its width. Only a
+ * starting value: it is measured off the real geometry on mount, and this is
+ * what the first frame is framed with in the meantime.
+ */
+const DEFAULT_ASPECT = 0.39;
 
 /**
  * How far above the centre of the canvas the board sits, in world units. The
@@ -178,7 +207,7 @@ export function KeyboardReveal() {
     // the overhang off the sections either side.
     <section
       ref={sectionRef}
-      className="relative h-[88svh] overflow-hidden"
+      className="relative h-[74svh] overflow-hidden"
     >
       {near && (
         <>
@@ -197,7 +226,7 @@ export function KeyboardReveal() {
               past both edges of the section instead of pulling its corners
               into view. */}
           <ReactiveLinesBackdrop
-            className="pointer-events-none absolute -inset-x-[14%] bottom-[-8%] h-[165%] -rotate-[8deg]"
+            className="pointer-events-none absolute -inset-x-[14%] bottom-[10%] h-[150%] -rotate-[8deg]"
             // Thinned right down from the hero's 108/15. The hero runs the
             // field at full density behind a full-bleed product where it reads
             // as texture; here it is a horizon behind a floating object, and
@@ -224,7 +253,7 @@ export function KeyboardReveal() {
             className="pointer-events-none absolute inset-0 z-[1] opacity-0"
             style={{
               background:
-                "radial-gradient(ellipse 52% 34% at 50% 36%, " +
+                "radial-gradient(ellipse 64% 38% at 50% 36%, " +
                 "rgba(255,255,255,0.13) 0%, rgba(255,255,255,0.055) 45%, " +
                 "transparent 75%)",
             }}
@@ -361,13 +390,26 @@ function Board({ progressRef }: { progressRef: React.RefObject<number> }) {
   const { scene } = useGLTF(MODEL_URL);
   const groupRef = useRef<Group>(null);
 
-  // How wide the world is at the model's depth, in the same units MODEL_SPAN
-  // is expressed in. On a phone that is narrower than the board, so the board
-  // is scaled down to fit rather than being cropped at both ends — a fixed
-  // scale that frames well on a laptop loses the ends of the spacebar at
-  // 375px. The 0.88 leaves the board off the very edges of the glass.
-  const viewportWidth = useThree((state) => state.viewport.width);
-  const fit = Math.min(1, (viewportWidth * 0.88) / MODEL_SPAN);
+  /**
+   * The board's own proportions, measured on mount: its erect on-screen height
+   * as a fraction of its width. Held in state rather than a ref because the
+   * framing below is computed during render and has to re-run when it lands.
+   */
+  const [aspect, setAspect] = useState(DEFAULT_ASPECT);
+
+  // The visible world at the model's depth, in the same units MODEL_SPAN is.
+  // r3f recomputes this whenever the canvas resizes, so the board re-frames
+  // itself on a window drag with no listener of our own.
+  const viewport = useThree((state) => state.viewport);
+
+  // The two limits from FRAME_WIDTH / FRAME_HEIGHT, resolved into one span.
+  // The height limit is solved for the board's top edge: the board sits
+  // MODEL_LIFT above centre and stands half its own height above that, and
+  // all of it has to stay inside the allowed fraction of the frame.
+  const widthLimit = viewport.width * FRAME_WIDTH;
+  const heightLimit =
+    ((viewport.height * FRAME_HEIGHT) / 2 - MODEL_LIFT) * (2 / aspect);
+  const fit = Math.max(0, Math.min(widthLimit, heightLimit)) / MODEL_SPAN;
 
   // Recentre and normalise the imported scene once. The .glb is modelled
   // around its own origin in metres with a slight authoring tilt baked into
@@ -400,6 +442,11 @@ function Board({ progressRef }: { progressRef: React.RefObject<number> }) {
     // board therefore rotates about itself rather than swinging around a
     // corner.
     scene.position.copy(center).multiplyScalar(-scale);
+
+    // Erect, the board's height on screen is its DEPTH (z), not its own y —
+    // it has been rotated a quarter turn towards the camera by then. That is
+    // the proportion the height limit above is solved against.
+    setAspect(size.z / Math.max(size.x, size.y, size.z));
 
     parent?.add(scene);
 

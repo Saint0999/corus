@@ -17,25 +17,40 @@ import { buttonPrimary } from "@/lib/styles";
  * crawlers.
  */
 
-const HERO_STATS = [
-  { value: "3", label: "Switch profiles" },
-  { value: "6", label: "Case finishes" },
-  { value: "4 wks", label: "Build time" },
+/**
+ * The spec sheet at the foot of the page.
+ *
+ * Two headline claims, then the numbers behind them in two tables. It is data
+ * rather than markup because every row is the same shape — a label and a value
+ * — and a table that is written out by hand is a table where one row quietly
+ * ends up styled differently from the rest.
+ */
+const HIGHLIGHTS = [
+  {
+    title: "Switches (hot swappable)",
+    detail: "tactile / 55g / two-stage spring / factory lubed",
+  },
+  {
+    title: "Screen Features",
+    detail: "Timer / Custom Wallpapers / More to come",
+  },
 ] as const;
 
-const SIGNATURE_DETAILS = [
-  {
-    title: "Tuned, not assembled",
-    body: "Switches are lubed and filmed by hand, stabilisers are clipped and balanced, and every board is typed on before it ships.",
-  },
-  {
-    title: "Sound you choose",
-    body: "Pick thock or clack at checkout. Case foam, plate material and mounting style are all part of the same decision.",
-  },
-  {
-    title: "Serviceable forever",
-    body: "Hot-swap sockets, standard keycap profiles and replacement parts kept in stock for the life of the board.",
-  },
+const MATERIALS = [
+  ["Top Enclosure", "CNC Alu / Anodized Silver"],
+  ["Bottom Enclosure", "CNC Alu / Anodized Gun Metal"],
+  ["Switch Plate", "Stamped Alu / Anodized Black"],
+  ["Tilt Risers", "Rubberized Plastic"],
+  ["Keycaps", "Dye Sub PBT"],
+  ["Knobs", "ABS Plastic"],
+  ["Screen Glass", "CNC Glass w/ adhesive black film"],
+  ["Screen", "100×310 px full-color LCD screen"],
+] as const;
+
+const CONNECTIVITY = [
+  ["USB-C Connection", "Cable Included"],
+  ["Bluetooth", "Up to 3 saved connections"],
+  ["Battery", "3000mah Li-ion Battery"],
 ] as const;
 
 /** The hero headline, split so "keystroke" can keep the accent colour. */
@@ -169,37 +184,79 @@ export default function HomePage() {
           approach — see the component. */}
       <KeyboardReveal />
 
-      {/* --- Supporting strip --- */}
-      <section className="border-t border-line py-16 sm:py-20">
+      {/* --- Spec sheet -----------------------------------------------------
+          The close of the page: no persuasion left, just the build. Two
+          claims across the top, then the materials and the electronics as
+          plain label/value tables.
+
+          Set in the SANS face, not the site's heading serif. The serif carries
+          the argument earlier on the page; this is reference material, and it
+          is read by scanning down the left column rather than by reading
+          sentences. */}
+      <section className="pt-10 pb-28 sm:pt-14 sm:pb-36">
         <Container>
-          <dl className="grid grid-cols-3 gap-4 border-b border-line pb-10">
-            {HERO_STATS.map((stat) => (
-              <div key={stat.label}>
-                <dt className="sr-only">{stat.label}</dt>
-                <dd>
-                  <span className="block text-2xl font-normal text-ink sm:text-3xl">
-                    {stat.value}
-                  </span>
-                  <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted sm:text-[10px] sm:tracking-[0.18em]">
-                    {stat.label}
-                  </span>
-                </dd>
+          <div className="grid gap-10 sm:grid-cols-2 sm:gap-12">
+            {HIGHLIGHTS.map((item) => (
+              <div key={item.title}>
+                <h2 className="font-sans text-2xl font-light tracking-[-0.01em] text-ink sm:text-[1.75rem]">
+                  {item.title}
+                </h2>
+                <p className="mt-1.5 text-sm font-light text-ink-muted sm:text-base">
+                  {item.detail}
+                </p>
               </div>
             ))}
-          </dl>
+          </div>
 
-          <div className="mt-12 grid gap-10 sm:grid-cols-3">
-            {SIGNATURE_DETAILS.map((item) => (
-              <article key={item.title}>
-                <h2 className="text-xl text-ink">{item.title}</h2>
-                <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-                  {item.body}
-                </p>
-              </article>
-            ))}
+          <div className="mt-20 grid gap-14 sm:mt-28 sm:grid-cols-2 sm:gap-x-16">
+            <SpecTable title="Materials" rows={MATERIALS} />
+            <SpecTable title="Connectivity and Power" rows={CONNECTIVITY} />
           </div>
         </Container>
       </section>
     </>
+  );
+}
+
+/**
+ * One block of the spec sheet: a heading, a rule, and label/value rows.
+ *
+ * A <dl> rather than a <table>: these are name/value pairs, not a grid of data
+ * with meaningful columns, and a screen reader announcing "table, 8 rows, 2
+ * columns" for what is really a list of properties is noise.
+ *
+ * `divide-y` plus a `border-t` is what puts a hairline UNDER the heading and
+ * BETWEEN every row while leaving the foot of the list open, so the block ends
+ * on the page rather than on a closing line.
+ */
+function SpecTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: readonly (readonly [string, string])[];
+}) {
+  return (
+    <div>
+      <h2 className="font-sans text-2xl font-light tracking-[-0.01em] text-ink sm:text-[1.75rem]">
+        {title}
+      </h2>
+
+      <dl className="mt-5 divide-y divide-line border-t border-line">
+        {rows.map(([label, value]) => (
+          // `items-baseline` so a value that wraps to two lines still sits on
+          // the same first line as its label instead of centring against it.
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-6 py-3.5"
+          >
+            <dt className="text-[15px] font-light text-ink">{label}</dt>
+            <dd className="text-right text-[15px] font-light text-ink">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

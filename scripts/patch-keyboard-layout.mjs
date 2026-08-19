@@ -1,0 +1,180 @@
+/**
+ * Re-lays the right-hand end of the keyboard model so the arrow cluster is a
+ * true inverted T — up directly above down.
+ *
+ * The .glb ships with the arrow cluster pushed ~11 mm right of the column the
+ * up arrow sits in, because the screen/knob shelf is 1.43u wide where the
+ * reference photo is 1.03u, and the bottom row was laid out to fill what was
+ * left. This closes that up from both sides: the shelf comes in, the last
+ * alpha column goes out to meet it, and the cluster slides back onto the same
+ * centre line as the up arrow.
+ *
+ *   node scripts/patch-keyboard-layout.mjs [in.glb] [out.glb]
+ *
+ * Defaults to patching public/models/corus-keyboard.glb in place.
+ *
+ * IDEMPOTENT. Every target below is an ABSOLUTE position and width in model
+ * space (metres), and the X scale needed to hit a target width is derived from
+ * the mesh's own bounding box, which this never touches. Running it twice — or
+ * on an already-patched file — lands on exactly the same numbers.
+ *
+ * It edits NODE TRANSFORMS only. No vertex data is rewritten, so the file
+ * keeps its original meshes, materials and textures, and the diff is a few
+ * hundred bytes of JSON inside a 1.5 MB binary.
+ */
+
+import { readFileSync, writeFileSync } from "node:fs";
+
+const IN = process.argv[2] ?? "public/models/corus-keyboard.glb";
+const OUT = process.argv[3] ?? IN;
+
+/**
+ * The column the up and down arrows now share. It is a compromise between the
+ * two: the up arrow moves 7.2 mm right, the down arrow 3.8 mm left. Meeting in
+ * the middle keeps both the widened keys on its left and the narrowed shelf on
+ * its right closer to the reference than driving either all the way.
+ */
+const ARROW_COLUMN = 0.1245;
+
+/** Arrow cluster pitch, as authored. */
+const ARROW_PITCH = 0.0199;
+
+/** Right edge of the shelf that carries the screen and knobs. Unchanged — the
+ *  case shell is not touched, so the outside of the product is identical. */
+const SHELF_RIGHT = 0.1588;
+const SHELF_WIDTH = 0.0242; // was 0.0326 (1.7u -> 1.27u)
+const SHELF_CENTER = SHELF_RIGHT - SHELF_WIDTH / 2;
+
+/**
+ * Per node: `cx` is the target centre in X, `width` the target width in X.
+ * Every mesh here is modelled symmetrically about its own origin, so a node's
+ * X translation IS its centre and no offset bookkeeping is needed.
+ *
+ * Widths are only given where a key has to grow or shrink to close a gap; the
+ * keys that only move keep their authored width.
+ */
+const TARGETS = {
+  // --- The right-hand shelf, slimmed to the reference's proportions --------
+  "shelf-right": { cx: SHELF_CENTER, width: SHELF_WIDTH },
+  "screen-bezel": { cx: SHELF_CENTER, width: 0.0202 }, // 1.43u -> 1.06u
+  "screen-display": { cx: SHELF_CENTER, width: 0.0184 },
+  // Group nodes: scaling the parent takes the body, cap and slot with it,
+  // slot rotation included, instead of patching three meshes each.
+  "knob-1": { cx: SHELF_CENTER, scaleXZ: 0.8 },
+  "knob-2": { cx: SHELF_CENTER, scaleXZ: 0.8 },
+
+  // --- Last alpha column, stretched right into the space that freed --------
+  // Each of these keeps its LEFT edge exactly where it was and grows to the
+  // right, so nothing opens up against the key beside it.
+  "keycap-del": { cx: 0.1138, width: 0.04 },
+  "keycap-backspace": { cx: 0.1114, width: 0.0448 },
+  "keycap-enter-top": { cx: 0.1162, width: 0.0354 },
+  "keycap-enter-stem": { cx: 0.1186, width: 0.0306 },
+  // A hair narrower than the 0.04 the gap arithmetic wants, because the up
+  // arrow beside it is widened below to match its own cluster.
+  "keycap-shift-2": { cx: 0.09455, width: 0.0395 },
+  "switch-plate-main": { cx: -0.0121, width: 0.2922 },
+
+  // --- The alignment itself ------------------------------------------------
+  // Widened from the alpha 0.98u to the cluster's own 1.03u: aligned centres
+  // read as an inverted T only if the two keys are also the same size.
+  "keycap-arrowup": { cx: ARROW_COLUMN, width: 0.0195 },
+  "keycap-arrowdown": { cx: ARROW_COLUMN },
+  "keycap-arrowleft": { cx: ARROW_COLUMN - ARROW_PITCH },
+  "keycap-arrowright": { cx: ARROW_COLUMN + ARROW_PITCH },
+
+  // --- Bottom row, closed up behind the cluster ----------------------------
+  // The spacebar loses 3.8 mm off its right end (its left edge is fixed) and
+  // the two modifiers follow it left, which is what lets the cluster sit on
+  // the up arrow's centre line without leaving a hole in the row.
+  "keycap-space": { cx: -0.0081, width: 0.1098 },
+  "keycap-alt-2": { cx: 0.0589 },
+  "keycap-fn-2": { cx: 0.0827 },
+};
+
+// ---------------------------------------------------------------------------
+
+const glb = readFileSync(IN);
+if (glb.readUInt32LE(0) !== 0x46546c67) throw new Error(`${IN} is not a .glb`);
+
+const jsonLength = glb.readUInt32LE(12);
+const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString("utf8"));
+const binChunk = glb.subarray(20 + jsonLength);
+
+/** Width in X of a mesh's own geometry, before any node scale. */
+function meshWidth(meshIndex) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const primitive of json.meshes[meshIndex].primitives) {
+    const accessor = json.accessors[primitive.attributes.POSITION];
+    min = Math.min(min, accessor.min[0]);
+    max = Math.max(max, accessor.max[0]);
+  }
+  return max - min;
+}
+
+/** Width in X of everything under a node, in that node's own space. */
+function subtreeWidth(nodeIndex) {
+  const node = json.nodes[nodeIndex];
+  let width = node.mesh === undefined ? 0 : meshWidth(node.mesh);
+  for (const child of node.children ?? []) {
+    width = Math.max(width, subtreeWidth(child));
+  }
+  return width;
+}
+
+let patched = 0;
+
+json.nodes.forEach((node, index) => {
+  const target = TARGETS[node.name];
+  if (!target) return;
+
+  // Everything in this file is authored with a `matrix`; the few nodes that
+  // carry rotation are children of the ones patched here, never these.
+  const matrix = node.matrix ?? [
+    1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0,
+    ...(node.translation ?? [0, 0, 0]),
+    1,
+  ];
+
+  if (target.width !== undefined) {
+    const authored = node.mesh === undefined
+      ? subtreeWidth(index)
+      : meshWidth(node.mesh);
+    matrix[0] = target.width / authored;
+  }
+  if (target.scaleXZ !== undefined) {
+    matrix[0] = target.scaleXZ;
+    matrix[10] = target.scaleXZ;
+  }
+  matrix[12] = target.cx;
+
+  node.matrix = matrix;
+  delete node.translation;
+  delete node.scale;
+  patched += 1;
+});
+
+const missing = Object.keys(TARGETS).filter(
+  (name) => !json.nodes.some((node) => node.name === name),
+);
+if (missing.length) throw new Error(`nodes not found: ${missing.join(", ")}`);
+
+// Re-serialise. The JSON chunk pads with spaces and the BIN chunk with zeroes,
+// both to a 4-byte boundary — that padding is part of the format, not slack.
+const jsonBuffer = Buffer.from(JSON.stringify(json), "utf8");
+const jsonPadding = (4 - (jsonBuffer.length % 4)) % 4;
+const jsonChunk = Buffer.concat([jsonBuffer, Buffer.alloc(jsonPadding, 0x20)]);
+
+const header = Buffer.alloc(12);
+header.writeUInt32LE(0x46546c67, 0); // "glTF"
+header.writeUInt32LE(2, 4); // version
+header.writeUInt32LE(12 + 8 + jsonChunk.length + binChunk.length, 8);
+
+const jsonHeader = Buffer.alloc(8);
+jsonHeader.writeUInt32LE(jsonChunk.length, 0);
+jsonHeader.writeUInt32LE(0x4e4f534a, 4); // "JSON"
+
+writeFileSync(OUT, Buffer.concat([header, jsonHeader, jsonChunk, binChunk]));
+
+console.log(`patched ${patched} nodes -> ${OUT}`);
