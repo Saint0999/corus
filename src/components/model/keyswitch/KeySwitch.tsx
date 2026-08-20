@@ -201,22 +201,32 @@ function material(part: PartName) {
  * nothing here decides which — it is driven from outside, so the same
  * component serves a scroll-linked reveal, a hover, or a static hero frame.
  *
- * `fade`, `blur` and `tint` are the same idea applied to how a layer is drawn:
- * per-layer opacity, per-layer defocus in millimetres, and per-layer colour.
- * Which layers are leaving, how soft they go on the way out and what colour
- * the switch is all belong to the shot rather than to the model. Anything left
- * out of a map keeps the default, so the plain case costs nothing.
+ * `fade`, `blur`, `tint` and `drift` are the same idea applied to how a layer
+ * is drawn: per-layer opacity, per-layer defocus in millimetres, per-layer
+ * colour, and a per-layer offset in millimetres away from where the stack puts
+ * it. Which layers are leaving, which way they go, how soft they get on the
+ * way out and what colour the switch is all belong to the shot rather than to
+ * the model. Anything left out of a map keeps the default, so the plain case
+ * costs nothing.
+ *
+ * `drift` is deliberately not part of `explode`. The come-apart is the stack
+ * opening ALONG its axis and every layer shares it; a drift is one layer being
+ * sent somewhere, which is what a part being dismissed from the shot looks
+ * like. Folding the second into the first would mean the camera could no
+ * longer trust `layerY` to say where anything is.
  */
 export function KeySwitch({
   explode = 0,
   fade,
   blur,
   tint,
+  drift,
 }: {
   explode?: number;
   fade?: Partial<Record<PartName, number>>;
   blur?: Partial<Record<PartName, number>>;
   tint?: Partial<Record<PartName, string>>;
+  drift?: Partial<Record<PartName, readonly [number, number, number]>>;
 }) {
   // Built once. These are a few thousand triangles of trigonometry and shape
   // triangulation, and none of it depends on anything that changes.
@@ -278,7 +288,10 @@ export function KeySwitch({
     // Divided back out of world units so positions are expressed in the
     // millimetres this group is scaled from — `layerY` is the shared
     // definition, and this is the one place it has to be unwound.
-    const y = layerY(name, explode) / MM;
+    const [driftX, driftY, driftZ] = drift?.[name] ?? [0, 0, 0];
+    const x = driftX;
+    const y = layerY(name, explode) / MM + driftY;
+    const z = driftZ;
     const radius = blur?.[name] ?? 0;
 
     if (radius <= 0) {
@@ -287,7 +300,7 @@ export function KeySwitch({
           key={name}
           geometry={geometry}
           material={materials[name]}
-          position={[0, y, 0]}
+          position={[x, y, z]}
         />
       );
     }
@@ -297,7 +310,7 @@ export function KeySwitch({
         key={`${name}-${index}`}
         geometry={geometry}
         material={materials[name]}
-        position={[dx * radius, y + dy * radius, 0]}
+        position={[x + dx * radius, y + dy * radius, z]}
       />
     ));
   };

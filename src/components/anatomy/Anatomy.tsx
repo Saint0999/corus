@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Image from "next/image";
-import { KeycapExploded } from "@/components/anatomy/KeycapExploded";
+import { KeySwitchStage } from "@/components/anatomy/KeySwitchStage";
 import {
   clamp01,
   ENTER_DELAY_MS,
@@ -17,7 +17,6 @@ import {
   EXIT_MS,
   StageVisit,
 } from "@/components/anatomy/PartStage";
-import { SwitchFocus } from "@/components/anatomy/SwitchFocus";
 import { scrollToY } from "@/components/scroll/SmoothScroll";
 import { StaggeredText, type Segment } from "@/components/text/StaggeredText";
 import { Container } from "@/components/ui/Container";
@@ -100,6 +99,11 @@ type Part = {
  * The details are the surviving content of the old spec table. One line each,
  * on purpose: a part that needs a paragraph needs a better visual instead.
  */
+// An element, not a component reference: this is a description of what to
+// render, and it is declared once, up here, because two parts share it and
+// sharing it is what tells the panel they are one stage.
+const KEY_SWITCH = <KeySwitchStage />;
+
 const PARTS: readonly Part[] = [
   {
     name: "The Keyboard",
@@ -109,18 +113,20 @@ const PARTS: readonly Part[] = [
       alt: "The Corus keyboard seen from directly above: silver aluminium case, light grey keycaps with an orange escape key and orange arrow cluster, two knobs and a colour screen at the right.",
     },
   },
+  // These two are ONE visual, and share it by pointing at the same element —
+  // see SLOTS below for how that is read. The switch is inside the key: the
+  // second row is the first row looked at more closely, and building a second
+  // copy of the model to say so was what made the change between them read as
+  // a cut. The stage holds still and the camera moves instead.
   {
     name: "Keycaps",
     detail: "Dye sub PBT, uniform profile",
-    // An element, not a component reference: this is a description of what to
-    // render, and nothing is mounted until the row is the selected one.
-    visual: <KeycapExploded />,
+    visual: KEY_SWITCH,
   },
   {
     name: "Switch",
     detail: "Tactile / 55g / two-stage spring / factory lubed",
-    // Picks up where the row above leaves off — see the component.
-    visual: <SwitchFocus />,
+    visual: KEY_SWITCH,
   },
   {
     name: "Knobs",
@@ -168,8 +174,37 @@ const railFill = (progress: number) =>
   clamp01((progress * PARTS.length) / Math.max(1, PARTS.length - 1)).toFixed(4);
 
 /**
- * Where a part's slot stands relative to the one on show, and how it gets
- * there.
+ * The panel's slots — one per visual, which is not the same as one per part.
+ *
+ * Consecutive parts that point at the SAME element are one stage and get one
+ * slot between them, because that is what "the switch is inside the key"
+ * means: there is nothing to swap, only somewhere else to look. Everything
+ * else gets a slot to itself.
+ *
+ * Derived from PARTS rather than declared beside it, so the list stays the one
+ * ordered source of truth and a slot cannot come to disagree with the rows it
+ * covers.
+ */
+type Slot = { readonly from: number; readonly to: number; readonly part: Part };
+
+const SLOTS: readonly Slot[] = PARTS.reduce<Slot[]>((slots, part, index) => {
+  const last = slots.at(-1);
+
+  if (last && part.visual && last.part.visual === part.visual) {
+    slots[slots.length - 1] = { ...last, to: index };
+    return slots;
+  }
+
+  slots.push({ from: index, to: index, part });
+  return slots;
+}, []);
+
+/** Which slot a part belongs to. */
+const slotOf = (index: number) =>
+  SLOTS.findIndex((slot) => index >= slot.from && index <= slot.to);
+
+/**
+ * Where a slot stands relative to the one on show, and how it gets there.
  *
  * The reader is travelling DOWN a list, so a part that has been passed parks a
  * full panel height ABOVE the frame and a part still to come waits a full
@@ -200,8 +235,8 @@ const railFill = (progress: number) =>
  * there is no enter/exit bookkeeping to get wrong: a slot cannot be mid-exit
  * and mid-entrance at once, because it only ever has one pose.
  */
-const pose = (index: number, active: number) => {
-  if (index === active) {
+const pose = (slot: Slot, active: number) => {
+  if (active >= slot.from && active <= slot.to) {
     return {
       className: "translate-y-0 opacity-100 blur-0 ease-in-out",
       style: {
@@ -213,7 +248,7 @@ const pose = (index: number, active: number) => {
 
   return {
     className: `pointer-events-none opacity-0 blur-[10px] ease-in-out ${
-      index < active ? "-translate-y-full" : "translate-y-full"
+      slot.to < active ? "-translate-y-full" : "translate-y-full"
     }`,
     style: { transitionDuration: `${EXIT_MS}ms`, transitionDelay: "0ms" },
   };
@@ -222,6 +257,7 @@ const pose = (index: number, active: number) => {
 /** Which part is showing, and how many times each has been arrived at. */
 type Selection = {
   readonly index: number;
+  /** One count per SLOT, not per part — see `choose`. */
   readonly visits: readonly number[];
 };
 
@@ -249,24 +285,38 @@ export function Anatomy() {
    */
   const [selection, setSelection] = useState<Selection>(() => ({
     index: 0,
-    visits: PARTS.map((_, index) => (index === 0 ? 1 : 0)),
+    visits: SLOTS.map((_, index) => (index === 0 ? 1 : 0)),
   }));
 
   const { index: active, visits } = selection;
 
-  /** Choose a part. A no-op if it is the one already showing, so that a
-   *  scroll inside one band does not count as arriving over and over. */
+  /**
+   * Choose a part. A no-op if it is the one already showing, so that a scroll
+   * inside one band does not count as arriving over and over.
+   *
+   * The visit count belongs to the SLOT rather than the part, and only goes up
+   * when the reader crosses into it from outside. That is what stops the key
+   * from re-exploding on the way from Keycaps to Switch: those two are one
+   * slot, so moving between them is not an arrival at anything — it is a
+   * change of where that slot is being asked to look.
+   */
   const choose = useCallback((index: number) => {
-    setSelection((current) =>
-      current.index === index
-        ? current
-        : {
-            index,
-            visits: current.visits.map((count, at) =>
-              at === index ? count + 1 : count,
-            ),
-          },
-    );
+    setSelection((current) => {
+      if (current.index === index) return current;
+
+      const from = slotOf(current.index);
+      const to = slotOf(index);
+
+      return {
+        index,
+        visits:
+          from === to
+            ? current.visits
+            : current.visits.map((count, at) =>
+                at === to ? count + 1 : count,
+              ),
+      };
+    });
   }, []);
 
   /** The track — the tall box the frame is pinned inside of. */
@@ -707,23 +757,34 @@ export function Anatomy() {
                   time you come back to a part — is bought instead by
                   <StageVisit>, which says the part has been arrived at without
                   anything being torn down to say so. */}
-              {PARTS.map((item, index) => {
+              {SLOTS.map((slot, index) => {
+                const item = slot.part;
+
                 // A stage is only in the tree once the page has built them —
                 // see `armed`. A still is always there, because a still that
                 // is not in the tree cannot be shown leaving.
                 if (item.visual && !armed) return null;
 
-                const { className, style } = pose(index, active);
+                const { className, style } = pose(slot, active);
+
+                // How far through its own parts the reader is. Zero for the
+                // slots that stand for one part; for the one that stands for
+                // two it is which of them is being asked for, and the stage
+                // eases between the two ends itself.
+                const focus =
+                  slot.to > slot.from
+                    ? clamp01((active - slot.from) / (slot.to - slot.from))
+                    : 0;
 
                 return (
                   <div
                     key={item.name}
-                    aria-hidden={index !== active}
+                    aria-hidden={!(active >= slot.from && active <= slot.to)}
                     style={style}
                     className={`absolute inset-0 transition-[opacity,translate,filter] ${className}`}
                   >
                     {item.visual ? (
-                      <StageVisit visit={visits[index]}>
+                      <StageVisit visit={visits[index]} focus={focus}>
                         {item.visual}
                       </StageVisit>
                     ) : item.image ? (

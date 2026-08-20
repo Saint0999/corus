@@ -3,7 +3,7 @@ import {
   type Segment,
 } from "@/components/text/StaggeredText";
 import { Container } from "@/components/ui/Container";
-import { panel } from "@/lib/styles";
+import { panelSurface } from "@/lib/styles";
 
 /**
  * Customer quotes: a heading, then three rows tracking sideways in alternating
@@ -312,9 +312,17 @@ function Card({
   "aria-hidden"?: boolean;
 }) {
   return (
+    // `panelSurface` and its own `p-5`, rather than `panel`: these cards are
+    // read in passing, three rows of them sliding by at once, and the site's
+    // standard 24px inset makes a wall of them. A quote wants less air around
+    // it here than a feature card does sitting still on a page.
+    //
     // `mr-4` and not a track-level `gap` — see the note at the top of the file
     // for why that is what keeps the loop seamless.
-    <li className={`${panel} mr-4 w-[19rem] shrink-0 sm:w-[22rem]`} {...rest}>
+    <li
+      className={`${panelSurface} mr-4 w-[17.5rem] shrink-0 p-5 sm:w-[20rem]`}
+      {...rest}
+    >
       <p className="text-sm leading-relaxed text-ink-muted">
         “{testimonial.quote}”
       </p>

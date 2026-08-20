@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -115,6 +116,22 @@ export const ENTRANCE_MS = ENTER_DELAY_MS + ENTER_MS;
 const VisitContext = createContext(0);
 
 /**
+ * How far through its OWN parts the reader is, 0 to 1.
+ *
+ * A stage usually stands for one part and this is always 0. It is for the one
+ * that stands for two: the exploded key and the switch inside it are the same
+ * object at two magnifications, so they share a stage, and this is which of
+ * them is being asked for — 0 the diagram, 1 the close-up, and every value
+ * between them a frame of the move from one to the other.
+ */
+const FocusContext = createContext(0);
+
+/** Where a shared stage is being asked to look. See <FocusContext>. */
+export function useStageFocus() {
+  return useContext(FocusContext);
+}
+
+/**
  * Marks one arrival at the stage inside it.
  *
  * A context rather than a prop because what has to hear about it is
@@ -124,13 +141,17 @@ const VisitContext = createContext(0);
  */
 export function StageVisit({
   visit,
+  focus = 0,
   children,
 }: {
   visit: number;
+  focus?: number;
   children: ReactNode;
 }) {
   return (
-    <VisitContext.Provider value={visit}>{children}</VisitContext.Provider>
+    <VisitContext.Provider value={visit}>
+      <FocusContext.Provider value={focus}>{children}</FocusContext.Provider>
+    </VisitContext.Provider>
   );
 }
 
@@ -229,6 +250,62 @@ function RedrawWhileScrolling() {
   }, [invalidate]);
 
   return null;
+}
+
+/**
+ * A value that travels to wherever it is pointed, rather than jumping there.
+ *
+ * <useReveal> plays a reveal once, from a standing start. This is the other
+ * shape: a number that is told where to be and eases across from wherever it
+ * had got to, every time the target moves. Which is what a stage shared by two
+ * parts needs — the reader can turn round halfway and the move has to turn
+ * round with them rather than restart.
+ *
+ * Eased at both ends, because every one of these begins and ends at rest, and
+ * timed in proportion to the distance left: turning round a tenth of the way
+ * in should take a tenth of the time, or the move looks like it has stalled.
+ */
+export function useApproach(target: number, durationMs: number) {
+  const [reduced] = useState(prefersReducedMotion);
+  const [value, setValue] = useState(target);
+
+  // Where the move has actually got to. A ref, and written only from inside
+  // the animation frame: it is what a NEW target measures its start from, and
+  // reading it out of state would mean re-reading a value React has already
+  // moved past.
+  const reached = useRef(target);
+
+  useEffect(() => {
+    if (reduced) return;
+
+    const start = reached.current;
+    const distance = target - start;
+    if (distance === 0) return;
+
+    const span = Math.max(1, durationMs * Math.abs(distance));
+
+    let frame = 0;
+    let began = 0;
+
+    const step = (now: number) => {
+      if (!began) began = now;
+
+      const t = clamp01((now - began) / span);
+      reached.current = start + distance * easeInOut(t);
+      setValue(reached.current);
+
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, durationMs, reduced]);
+
+  // Turning round mid-move is the case this exists for: the effect above is
+  // keyed on the target alone, so a new one cancels the frame in flight and
+  // sets off again from wherever `reached` had got to, rather than snapping
+  // back to the start.
+  return reduced ? target : value;
 }
 
 export function PartStage({ children }: { children: ReactNode }) {

@@ -24,6 +24,10 @@ export const buttonSecondary =
 export const eyebrow =
   "text-xs font-mono uppercase tracking-[0.2em] text-accent";
 
+/** The panel's surface on its own — corner, hairline and ground, with no
+ *  padding. For the places that want the site's card but not its default
+ *  inset; everything else should reach for `panel` below. */
+export const panelSurface = "rounded-2xl border border-line bg-surface-raised";
+
 /** Panel used for feature cards, spec tables and configurator groups. */
-export const panel =
-  "rounded-2xl border border-line bg-surface-raised p-6";
+export const panel = `${panelSurface} p-6`;
