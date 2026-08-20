@@ -202,6 +202,34 @@ body {
   animation: stagger-char-in 0.5s ease-out both;
 }
 
+/* The same reveal on the SCROLL timeline, for display copy below the fold —
+ * see `reveal="scroll"` in components/text/StaggeredText.tsx.
+ *
+ * Same keyframes, so the move is the hero's exactly; what changes is what
+ * drives it. A mount animation down here is over before the reader arrives,
+ * and `animation-timeline: view()` replaces the clock with the block's own
+ * travel through the viewport.
+ *
+ * There is no `animation-delay` on a scroll timeline — a delay is a length of
+ * TIME and there is none — so the stagger is carried by each character's
+ * `animation-range`, set inline by the component. The `linear` timing is not a
+ * style choice either: the easing is already in the reader's scroll, and a
+ * second ease on top of it makes the sweep surge.
+ *
+ * The `@supports` guard is the same contract as `.scroll-pop` below: where
+ * view timelines are not understood the rule never applies, the characters are
+ * never animated, and the line is simply there. Nothing is hidden by default
+ * and revealed by script.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .stagger-char-scroll {
+      animation: stagger-char-in linear both;
+      animation-timeline: view();
+    }
+  }
+}
+
 /* ------------------------------------------------------------------------
  * Whole-element blur reveal
  *
@@ -228,6 +256,119 @@ body {
 
 .blur-fade-in {
   animation: blur-fade-in 0.7s ease-out both;
+}
+
+/* ------------------------------------------------------------------------
+ * Scroll-triggered pop-in — used by the spec sheet at the foot of the page
+ *
+ * A block starts a little low and transparent and settles as it is scrolled
+ * into view. Unlike `.blur-fade-in` above, which fires on mount, this is tied
+ * to the element's POSITION: everything it is used on is well below the fold,
+ * and a mount animation down there has already finished by the time anybody
+ * arrives.
+ *
+ * It is a CSS scroll-driven animation — `animation-timeline: view()` hands the
+ * animation's progress to the element's own travel through the viewport — so
+ * there is no observer, no listener, no client component and no hydration cost
+ * for what is otherwise static server-rendered markup.
+ *
+ * The `@supports` guard is the whole no-JS/old-browser story: where the
+ * timeline is not understood the rule never applies, the animation never
+ * takes hold, and the content is simply there. Nothing is hidden by default
+ * and then revealed by script, so there is no way for this to strand content
+ * invisible.
+ *
+ * `animation-range` is in the view-timeline's own units: `entry 10%` is a
+ * tenth of the way into the element crossing the bottom edge, `cover 30%` is
+ * a third of the way through its whole pass. The two variants below differ
+ * only in that range, which is how columns SIDE BY SIDE get staggered — a
+ * scroll-driven animation has no time to delay, so the offset has to be in
+ * scroll distance instead.
+ * ---------------------------------------------------------------------- */
+@keyframes scroll-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * Sideways marquee — see components/testimonials/TestimonialMarquee.tsx
+ *
+ * The track holds two identical copies of its row and slides exactly half its
+ * own width, which puts the second copy where the first started: the loop has
+ * no seam and no reset to hide. The component is responsible for spacing its
+ * cards with a margin rather than a flex `gap`, which is what makes "half the
+ * track" and "one copy" the same distance.
+ *
+ * `translate3d`, not `translateX`: it keeps the whole row on the compositor,
+ * so three of these running at once cost no layout and no paint.
+ * ---------------------------------------------------------------------- */
+@keyframes marquee-left {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marquee-right {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.marquee-track {
+  /* Duration is set per row from the component. */
+  animation: marquee-left 60s linear infinite;
+}
+
+.marquee-track[data-direction="right"] {
+  animation-name: marquee-right;
+}
+
+/* Stops under the pointer so a quote can actually be read. */
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Not covered by the blanket rule at the foot of this file: that one zeroes
+     DURATIONS, and a zero-duration infinite animation does not stop — it
+     restarts every frame, which turns a slow drift into a jitter. This has to
+     take the animation off outright. */
+  .marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-pop,
+    .scroll-pop-late {
+      animation: scroll-pop-in linear both;
+      animation-timeline: view();
+    }
+
+    .scroll-pop {
+      animation-range: entry 8% cover 30%;
+    }
+
+    /* The second column of a pair: same move, a beat further down the scroll,
+       so a row of two blocks arrives left-then-right rather than as a slab. */
+    .scroll-pop-late {
+      animation-range: entry 20% cover 42%;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

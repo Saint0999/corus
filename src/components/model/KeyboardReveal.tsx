@@ -15,6 +15,7 @@ import {
   Vector3,
 } from "three";
 import { ReactiveLinesBackdrop } from "@/components/hero/ReactiveLinesBackdrop";
+import { edgeFalloff } from "@/components/model/edgeFalloff";
 
 /**
  * Scroll-driven 3D reveal of the board.
@@ -138,8 +139,8 @@ const MODEL_LIFT = 0.45;
  * the page behind them is #000, and at 1.0 the highlights clip and the board
  * glares.
  */
-const EXPOSURE_DIM = 0.5;
-const EXPOSURE_LIT = 0.92;
+const EXPOSURE_DIM = 0.52;
+const EXPOSURE_LIT = 1.0;
 
 /**
  * How far through the section's travel the board finishes standing up, where 0
@@ -174,58 +175,137 @@ const VIGNETTE_HOLD = 0.78;
 const VIGNETTE_DROP = 0.3;
 
 /**
- * Edge falloff, as a fraction of the surface's own lit colour removed where it
- * turns fully away from the camera, and the curve it is ramped in on. This is
- * deliberately the OPPOSITE of a physical fresnel rim — the point is to take
- * the silhouette down towards the background rather than to light it up, so
- * the board dissolves into the page at its edges.
+ * The grade.
+ *
+ * One table, keyed by the .glb's own MATERIAL names — not mesh names, because
+ * a material is exactly the run of surfaces that is meant to change together
+ * (`aluminium-silver` is the shell, the right-hand shelf and the USB-C bezel;
+ * `plastic-black` is both knobs, the screen bezel and the port cavity).
+ *
+ * What it is grading TOWARDS is the cinematic product render: warm titanium
+ * case, creamy caps, terracotta accents, machined gunmetal knobs. The board as
+ * authored is cooler and flatter than that on every surface, and the fix is
+ * the same one in each row — take the blue out of the albedo, and let
+ * roughness rather than colour decide how much light each surface returns.
+ *
+ * Three notes on the numbers, because they are the ones that are easy to get
+ * backwards in three's flavour of PBR:
+ *
+ *  - `metalness` is not a gloss slider. It is a yes/no about what the surface
+ *    IS, and a value in between is only ever a fudge for a coating. The caps
+ *    and the accents are plastic, so they are 0 — the old 0.3 on the caps was
+ *    buying a highlight at the cost of the diffuse that makes cream read as
+ *    cream. Gloss is `roughness`, which is what carries it now.
+ *  - The metals (case, knobs) go the other way and commit: past ~0.6 a surface
+ *    stops having a diffuse to fall back on, so what it looks like is entirely
+ *    what it can see. That is what `envMapIntensity` is for here, and it is
+ *    why the metals carry the high values in the table.
+ *  - Everything is authored in sRGB hex and `Color` converts on assignment
+ *    (three's colour management is on by default), so these are the numbers
+ *    an eyedropper on the reference would report — not linear values.
  */
-const EDGE_FALLOFF = 0.55;
-const EDGE_POWER = 2.2;
+const GRADE: Record<
+  string,
+  {
+    color: string;
+    metalness: number;
+    roughness: number;
+    env: number;
+    emissive?: string;
+    emissiveIntensity?: number;
+  }
+> = {
+  // Case shell. Warm light titanium: the old #8b9199 was a blue-grey, and on a
+  // black page next to near-white caps that blue is the single thing that made
+  // the render read as CG. Roughness comes down from 0.62 to a bead-blasted
+  // anodised 0.38 so the top rail carries the long soft highlight the
+  // reference has down its left edge.
+  "aluminium-silver": {
+    color: "#ababa3",
+    metalness: 0.6,
+    roughness: 0.36,
+    env: 1.5,
+  },
 
-/**
- * The case, restyled to matte silver.
- *
- * The .glb ships the shell as a near-white aluminium that measures within a
- * few points of the off-white keycaps, so on a dark page the board reads as
- * one undifferentiated slab. Dropping the shell's value and cooling it puts a
- * clear step between case and keycaps — the keycaps themselves are left
- * exactly as authored. High roughness with the metalness kept mid keeps it
- * MATTE: a bead-blasted anodised finish, not chrome.
- *
- * Named materials, not mesh names: `aluminium-silver` is the case shell, the
- * right-hand shelf and the USB-C bezel, which is precisely the run of surfaces
- * meant to change together.
- */
-const CASE_MATERIAL = "aluminium-silver";
-const CASE_COLOR = "#8b9199";
-const CASE_METALNESS = 0.52;
-const CASE_ROUGHNESS = 0.62;
+  // Alphanumerics. Cream, not silver: warm off-white PBT with a semi-matte
+  // sheen. Metalness back to 0 — see the note above — and the sheen moved into
+  // roughness, which keeps the dye-sub legends dark instead of greying them
+  // out the way a metal fresnel does.
+  "keycap-offwhite": {
+    color: "#ece9e1",
+    metalness: 0,
+    roughness: 0.42,
+    env: 1.15,
+  },
 
-/**
- * The keycaps, taken from warm matte off-white to a light polished silver.
- *
- * The .glb authors them as a 0.74-roughness cream, which is a moulded-plastic
- * finish: it scatters everything and has no highlight to speak of. The look
- * being matched is the opposite — a bright, near-neutral cap with a tight
- * specular that travels across the row as the board turns. That is roughness
- * doing the work, not colour: the value only comes up a little and cools off,
- * while the roughness drops by more than half so each cap carries a highlight.
- *
- * Metalness stays low. These read as polished, not machined; pushing it up
- * with only two lightformers for an environment turns them grey and dead,
- * because a metal has no diffuse to fall back on when there is nothing around
- * it to reflect. The environment intensity is lifted instead, which is what
- * puts the sheen on without touching the legends.
- *
- * The name is the material's, so the orange accent caps — esc and the arrow
- * cluster — are untouched and keep their own finish.
- */
-const KEYCAP_MATERIAL = "keycap-offwhite";
-const KEYCAP_COLOR = "#d7dade";
-const KEYCAP_METALNESS = 0.3;
-const KEYCAP_ROUGHNESS = 0.26;
-const KEYCAP_ENV = 1.9;
+  // Esc and the arrow cluster. The .glb's #d84a24 is a signal orange; the
+  // reference is terracotta — the same hue rotated a few degrees to the red
+  // and dropped in value, so it reads as a deep pigment under a warm light
+  // rather than as a saturated swatch. Lower roughness than the off-white
+  // caps: the accents in the reference are visibly glossier than their
+  // neighbours.
+  "keycap-orange": {
+    color: "#a8401d",
+    metalness: 0,
+    roughness: 0.34,
+    env: 1.25,
+  },
+
+  // The small accent hardware — power nub, indicator dots. Half a step
+  // brighter than the caps so it still registers at that size.
+  "accent-orange": {
+    color: "#b4441f",
+    metalness: 0,
+    roughness: 0.32,
+    env: 1.25,
+  },
+
+  // Both knobs, their caps, and the screen bezel. Flat black in the .glb;
+  // machined dark gunmetal here. This is the one row where metalness is doing
+  // the whole job: a knob is only ever as interesting as the highlight running
+  // round its knurl, and at 0.88/0.30 the environment panels below draw that
+  // edge out of the dark instead of leaving a black cylinder.
+  "plastic-black": {
+    color: "#46464a",
+    metalness: 0.8,
+    roughness: 0.28,
+    env: 2.6,
+  },
+
+  // The plate under the caps. Stays near-black — it is a hole, not a surface —
+  // but warm-black rather than the authored blue-black, so the gaps between
+  // the caps do not read cold against them.
+  "switch-plate": {
+    color: "#2b2a28",
+    metalness: 0.35,
+    roughness: 0.55,
+    env: 1,
+  },
+
+  // Inner floor and bottom weight. Barely seen from the front, graded only so
+  // it does not sit cold in the shadow between the plate and the shell.
+  "aluminium-gunmetal": {
+    color: "#4a4844",
+    metalness: 0.7,
+    roughness: 0.45,
+    env: 1.4,
+  },
+
+  // The display. Its gradient is a texture, so the colour cannot be replaced
+  // here — but the emissive it is multiplied by can, and a warm cream tint is
+  // what turns the authored white-to-orange ramp into the amber-to-white GLOW
+  // the reference has. Kept just above 1: the screen is the brightest thing on
+  // the board and the only emissive surface on it, and past about 1.4 it
+  // blooms through the ACES curve and takes the bezel with it.
+  "screen-display": {
+    color: "#ffffff",
+    metalness: 0,
+    roughness: 0.22,
+    env: 1,
+    emissive: "#ffd9a8",
+    emissiveIntensity: 1.25,
+  },
+};
 
 export function KeyboardReveal() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -267,16 +347,59 @@ export function KeyboardReveal() {
               all. The sideways overscan is what keeps the rotated box running
               past both edges of the section instead of pulling its corners
               into view. */}
-          <ReactiveLinesBackdrop
-            className="pointer-events-none absolute -inset-x-[14%] bottom-[10%] h-[150%] -rotate-[8deg]"
-            // Thinned right down from the hero's 108/15. The hero runs the
-            // field at full density behind a full-bleed product where it reads
-            // as texture; here it is a horizon behind a floating object, and
-            // at that density the curves compete with the keycap rows for the
-            // same attention.
-            minLines={42}
-            maxLines={10}
-          />
+          {/* Softening layer. The field is drawn crisp, at one device pixel a
+              line, and cut off square by the section's own edges — which is
+              what made this block read as a panel sitting ON the page rather
+              than as depth behind the board.
+
+              Two things fix that, and both belong out here rather than in the
+              vendored component:
+
+               - A one-pixel BLUR. It is barely a blur at all on any single
+                 line; what it does is take the aliased stair-stepping off a
+                 field of near-horizontal curves, which is the actual source of
+                 the roughness.
+               - A vertical MASK that fades the field out at the top and bottom
+                 of the section, so the curves dissolve instead of ending on a
+                 straight edge. The fades are asymmetric: the top one is long
+                 and starts immediately, because up there the field is only
+                 texture behind the board, and the bottom one is short and late,
+                 because the curves down there are the horizon the board floats
+                 above and cutting into them takes the floor out.
+
+              The mask is safe to hang on this layer precisely because the
+              field's canvas paints opaque #000: what shows through where it is
+              masked away is the page's own black, so the fade has no seam to
+              give away. Putting the same mask on the SECTION would instead eat
+              the top edge of the board, which sits only a few pixels below it.
+
+              `overflow-hidden` here as well as on the section: the blur is a
+              filter, and a filter on a box whose contents overhang it will
+              happily bleed those contents past its edges. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{
+              filter: "blur(1px)",
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, " +
+                "rgba(0,0,0,0.45) 14%, #000 32%, #000 84%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0%, " +
+                "rgba(0,0,0,0.45) 14%, #000 32%, #000 84%, transparent 100%)",
+            }}
+          >
+            <ReactiveLinesBackdrop
+              className="pointer-events-none absolute -inset-x-[14%] bottom-[10%] h-[150%] -rotate-[8deg]"
+              // Thinned right down from the hero's 108/15. The hero runs the
+              // field at full density behind a full-bleed product where it
+              // reads as texture; here it is a horizon behind a floating
+              // object, and at that density the curves compete with the keycap
+              // rows for the same attention.
+              minLines={42}
+              maxLines={10}
+            />
+          </div>
 
           {/* Glow. One soft white ellipse behind the board — no colour, so it
               reads as light on the backdrop rather than as a tint. It sits
@@ -414,15 +537,37 @@ function Scene({
           (metalness tops out at 0.32), so punctual lights carry it and the
           environment below is there for the specular roll-off on the
           anodised case rather than to make the metal exist at all. */}
-      <ambientLight intensity={0.22} />
+      {/* Ambient is TINTED and low. On a black page it is the one light with
+          nowhere to fall off, so it is the fastest way to flatten a render —
+          but a few points of it in the key light's own colour is what stops
+          the shadow side going blue by default. */}
+      <ambientLight intensity={0.14} color="#fff9f3" />
       {/* Key: high and camera-left, so the keycap tops catch it while the
-          board is still tilted. */}
-      <directionalLight position={[-4, 6, 5]} intensity={1.9} />
-      {/* Fill: opposite side, weak, keeps the shadow side off pure black. */}
-      <directionalLight position={[5, 1, 4]} intensity={0.5} />
+          board is still tilted. Warm, around 5000K — this is the light doing
+          the grading, and every warm surface in the table above is warm
+          BECAUSE of what this returns off it. */}
+      <directionalLight
+        position={[-4, 6, 5]}
+        intensity={2.1}
+        color="#fff1dd"
+      />
+      {/* Fill: opposite side, weak, keeps the shadow side off pure black —
+          and deliberately COOL against a warm key. That split is most of what
+          reads as photographic rather than lit; a warm fill under a warm key
+          just raises the black point. */}
+      <directionalLight
+        position={[5, 1, 4]}
+        intensity={0.4}
+        color="#cfd8e8"
+      />
       {/* Rim: behind and above, draws the top edge of the case out of the
-          page once the board is standing up. */}
-      <directionalLight position={[0, 3, -6]} intensity={1.1} />
+          page once the board is standing up. Warm again, so the edge belongs
+          to the same room as the key. */}
+      <directionalLight
+        position={[0, 3, -6]}
+        intensity={1.15}
+        color="#ffe6c8"
+      />
 
       {/* Rendered into a cubemap once, on mount — no HDR is fetched, so this
           costs one small offscreen pass and nothing over the network. */}
@@ -432,16 +577,26 @@ function Scene({
             faces is this panel, not a directional light, which is why it is
             worth its size and intensity. */}
         <Lightformer
-          intensity={2.4}
+          intensity={2.2}
           position={[0, 3.2, 2.5]}
           scale={[10, 5, 1]}
-          color="#ffffff"
+          color="#fff6ec"
         />
+        {/* Low and camera-right, in the screen's own amber, roughly where the
+            display sits on the board. It is not lighting the screen — the
+            screen is emissive and lights itself — it is the SPILL that a real
+            display would throw onto the shelf and the knobs beside it, which
+            is what ties the one hot object on the board into the rest of it.
+
+            This replaces a chartreuse panel that put the brand's accent green
+            into the environment. It was the largest single source of the cool
+            cast: the case is metallic, so its colour is mostly whatever it can
+            see, and what it could see was green. */}
         <Lightformer
-          intensity={0.6}
-          position={[-4, 0, 2]}
-          scale={[3, 6, 1]}
-          color="#cdea1b"
+          intensity={0.7}
+          position={[3.4, -1.2, 2.2]}
+          scale={[3, 4, 1]}
+          color="#ffb46a"
         />
       </Environment>
 
@@ -518,8 +673,7 @@ function Board({ progressRef }: { progressRef: React.RefObject<number> }) {
       if (!(object instanceof Mesh)) return;
       const material: Material | Material[] = object.material;
       for (const one of Array.isArray(material) ? material : [material]) {
-        matteSilverCase(one);
-        shinyKeycaps(one);
+        grade(one);
         edgeFalloff(one);
       }
     });
@@ -543,85 +697,35 @@ function Board({ progressRef }: { progressRef: React.RefObject<number> }) {
 }
 
 /**
- * Restyles the case shell to matte silver, and only the case shell — every
- * keycap material is left exactly as it was authored.
+ * Applies the grade above to one material, if it is named in it.
  *
- * Like `edgeFalloff` below, this runs against materials that come out of
- * useGLTF's shared cache, so it is written to be idempotent: re-applying the
- * same three values on a remount is a no-op rather than a drift.
+ * Absolute values, never deltas, and every field written every time: these
+ * materials come out of useGLTF's shared cache, which outlives this component,
+ * so a remount re-runs this against materials it has already graded. Setting
+ * `roughness = roughness * 0.8` would compound; setting it to a number cannot.
+ *
+ * Anything not in the table — the rubber feet, the engraving floor — is left
+ * exactly as authored. Silence is the default on purpose: a fallback grade
+ * would quietly restyle whatever a future export happens to add.
  */
-function matteSilverCase(material: Material) {
-  if (material.name !== CASE_MATERIAL) return;
+function grade(material: Material) {
+  const target = GRADE[material.name];
+  if (!target) return;
   if (!(material instanceof MeshStandardMaterial)) return;
 
-  material.color = new Color(CASE_COLOR);
-  material.metalness = CASE_METALNESS;
-  material.roughness = CASE_ROUGHNESS;
-  // The environment is two lightformers rather than a real studio, so the
-  // silver needs the reflection pushed a little to read as metal at all.
-  material.envMapIntensity = 1.25;
-}
+  // The base colour MULTIPLIES the base-colour texture where there is one, so
+  // on the caps this tints the moulding without touching the legends printed
+  // into it, and on the screen it is left white so the display's own gradient
+  // comes through unaltered.
+  material.color = new Color(target.color);
+  material.metalness = target.metalness;
+  material.roughness = target.roughness;
+  material.envMapIntensity = target.env;
 
-/**
- * Polishes the keycaps. Same contract as `matteSilverCase`: named material
- * only, absolute values, safe to re-apply.
- */
-function shinyKeycaps(material: Material) {
-  if (material.name !== KEYCAP_MATERIAL) return;
-  if (!(material instanceof MeshStandardMaterial)) return;
-
-  // Multiplied against the legend texture, so this tints the cap without
-  // touching the printing on it.
-  material.color = new Color(KEYCAP_COLOR);
-  material.metalness = KEYCAP_METALNESS;
-  material.roughness = KEYCAP_ROUGHNESS;
-  material.envMapIntensity = KEYCAP_ENV;
-}
-
-/**
- * Patches a few lines into a material's fragment shader that darken the
- * surface as it turns away from the camera.
- *
- * This is the "too bright against the black" fix that a vignette alone cannot
- * do: the vignette works in screen space and knows nothing about the object,
- * so it cannot tell the middle of the spacebar from the case edge beside it.
- * This works in surface space — the further a fragment's normal leans away
- * from the viewer, the more of its lit colour is taken off, so every edge of
- * the board rolls down into the page while the faces that are square-on to
- * the reader keep their full value.
- *
- * `geometryNormal` and `geometryViewDir` are three's own view-space variables,
- * set up by <lights_fragment_begin> and still in scope at <opaque_fragment>,
- * where `outgoingLight` is the final lit colour before tone mapping. Patching
- * BEFORE tone mapping is what makes the falloff grade smoothly with everything
- * else rather than fighting the ACES curve after it.
- *
- * Materials come out of useGLTF's cache, which is shared and outlives this
- * component, so the patch is flagged and applied exactly once — running
- * `onBeforeCompile` twice would inject the same block twice and fail to
- * compile.
- */
-function edgeFalloff(material: Material) {
-  if (material.userData.corusEdgeFalloff) return;
-  material.userData.corusEdgeFalloff = true;
-
-  material.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <opaque_fragment>",
-      `
-      float corusEdge = 1.0 - saturate( dot( geometryNormal, geometryViewDir ) );
-      outgoingLight *= mix(
-        1.0,
-        1.0 - ${EDGE_FALLOFF.toFixed(3)},
-        pow( corusEdge, ${EDGE_POWER.toFixed(3)} )
-      );
-
-      #include <opaque_fragment>
-      `,
-    );
-  };
-
-  material.needsUpdate = true;
+  if (target.emissive) {
+    material.emissive = new Color(target.emissive);
+    material.emissiveIntensity = target.emissiveIntensity ?? 1;
+  }
 }
 
 /**

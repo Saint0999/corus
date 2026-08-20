@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Anatomy } from "@/components/anatomy/Anatomy";
 import { HeroVideo } from "@/components/hero/HeroVideo";
 import { KeyboardReveal } from "@/components/model/KeyboardReveal";
 import { SmoothScroll } from "@/components/scroll/SmoothScroll";
+import { TestimonialMarquee } from "@/components/testimonials/TestimonialMarquee";
 import {
   ScrollRevealText,
   type Segment,
@@ -17,42 +19,6 @@ import { buttonPrimary } from "@/lib/styles";
  * so the headline and CTA are in the initial HTML — good for LCP and for
  * crawlers.
  */
-
-/**
- * The spec sheet at the foot of the page.
- *
- * Two headline claims, then the numbers behind them in two tables. It is data
- * rather than markup because every row is the same shape — a label and a value
- * — and a table that is written out by hand is a table where one row quietly
- * ends up styled differently from the rest.
- */
-const HIGHLIGHTS = [
-  {
-    title: "Switches (hot swappable)",
-    detail: "tactile / 55g / two-stage spring / factory lubed",
-  },
-  {
-    title: "Screen Features",
-    detail: "Timer / Custom Wallpapers / More to come",
-  },
-] as const;
-
-const MATERIALS = [
-  ["Top Enclosure", "CNC Alu / Anodized Silver"],
-  ["Bottom Enclosure", "CNC Alu / Anodized Gun Metal"],
-  ["Switch Plate", "Stamped Alu / Anodized Black"],
-  ["Tilt Risers", "Rubberized Plastic"],
-  ["Keycaps", "Dye Sub PBT"],
-  ["Knobs", "ABS Plastic"],
-  ["Screen Glass", "CNC Glass w/ adhesive black film"],
-  ["Screen", "100×310 px full-color LCD screen"],
-] as const;
-
-const CONNECTIVITY = [
-  ["USB-C Connection", "Cable Included"],
-  ["Bluetooth", "Up to 3 saved connections"],
-  ["Battery", "3000mah Li-ion Battery"],
-] as const;
 
 /** The hero headline, split so "keystroke" can keep the accent colour. */
 const HERO_HEADLINE: readonly Segment[] = [
@@ -189,79 +155,17 @@ export default function HomePage() {
           approach — see the component. */}
       <KeyboardReveal />
 
-      {/* --- Spec sheet -----------------------------------------------------
-          The close of the page: no persuasion left, just the build. Two
-          claims across the top, then the materials and the electronics as
-          plain label/value tables.
+      {/* --- Anatomy -------------------------------------------------------
+          The close of the page: no persuasion left, just the build. The parts
+          of the board listed down the left, and whichever one is picked shown
+          on the right. Replaces the pair of label/value spec tables that used
+          to sit here. */}
+      <Anatomy />
 
-          Set in the SANS face, not the site's heading serif. The serif carries
-          the argument earlier on the page; this is reference material, and it
-          is read by scanning down the left column rather than by reading
-          sentences. */}
-      <section className="pt-10 pb-28 sm:pt-14 sm:pb-36">
-        <Container>
-          <div className="grid gap-10 sm:grid-cols-2 sm:gap-12">
-            {HIGHLIGHTS.map((item) => (
-              <div key={item.title}>
-                <h2 className="font-sans text-2xl font-light tracking-[-0.01em] text-ink sm:text-[1.75rem]">
-                  {item.title}
-                </h2>
-                <p className="mt-1.5 text-sm font-light text-ink-muted sm:text-base">
-                  {item.detail}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-20 grid gap-14 sm:mt-28 sm:grid-cols-2 sm:gap-x-16">
-            <SpecTable title="Materials" rows={MATERIALS} />
-            <SpecTable title="Connectivity and Power" rows={CONNECTIVITY} />
-          </div>
-        </Container>
-      </section>
+      {/* --- What people say ------------------------------------------------
+          Three rows of quotes tracking sideways, the middle one against the
+          other two. Pure CSS — see the component. */}
+      <TestimonialMarquee />
     </>
-  );
-}
-
-/**
- * One block of the spec sheet: a heading, a rule, and label/value rows.
- *
- * A <dl> rather than a <table>: these are name/value pairs, not a grid of data
- * with meaningful columns, and a screen reader announcing "table, 8 rows, 2
- * columns" for what is really a list of properties is noise.
- *
- * `divide-y` plus a `border-t` is what puts a hairline UNDER the heading and
- * BETWEEN every row while leaving the foot of the list open, so the block ends
- * on the page rather than on a closing line.
- */
-function SpecTable({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: readonly (readonly [string, string])[];
-}) {
-  return (
-    <div>
-      <h2 className="font-sans text-2xl font-light tracking-[-0.01em] text-ink sm:text-[1.75rem]">
-        {title}
-      </h2>
-
-      <dl className="mt-5 divide-y divide-line border-t border-line">
-        {rows.map(([label, value]) => (
-          // `items-baseline` so a value that wraps to two lines still sits on
-          // the same first line as its label instead of centring against it.
-          <div
-            key={label}
-            className="flex items-baseline justify-between gap-6 py-3.5"
-          >
-            <dt className="text-[15px] font-light text-ink">{label}</dt>
-            <dd className="text-right text-[15px] font-light text-ink">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
   );
 }
