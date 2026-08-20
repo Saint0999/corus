@@ -5,6 +5,33 @@ import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 
 /**
+ * The page's Lenis instance, for as long as one is running.
+ *
+ * Module-scoped rather than a context: there is exactly one of these, on
+ * exactly one route, and the only thing anything else on the page ever wants
+ * from it is `scrollToY` below.
+ */
+let instance: Lenis | null = null;
+
+/**
+ * Scroll the window to `top`, eased the way this page eases everything else.
+ *
+ * Goes through Lenis while it is running, because a native smooth scroll and
+ * Lenis's own animation are two things driving `scrollY` at once and the
+ * result is a fight the reader can see. Where there is no Lenis the jump is
+ * instant — which is also the reduced-motion case, and instant is what that
+ * reader asked for.
+ */
+export function scrollToY(top: number) {
+  if (instance) {
+    instance.scrollTo(top);
+    return;
+  }
+
+  window.scrollTo({ top, behavior: "auto" });
+}
+
+/**
  * Smooth scrolling, for the landing page only.
  *
  * Mounted from `app/page.tsx` rather than the root layout, so it lives and
@@ -42,6 +69,8 @@ export function SmoothScroll() {
       syncTouch: false,
     });
 
+    instance = lenis;
+
     // Lenis can run its own loop, but owning it here means the teardown below
     // is guaranteed to stop it — a stray rAF outliving the route is the one
     // way this could leak into the pages that are meant to scroll natively.
@@ -51,6 +80,7 @@ export function SmoothScroll() {
     });
 
     return () => {
+      instance = null;
       cancelAnimationFrame(frame);
       // Removes the `lenis` classes from <html> and restores native scrolling.
       lenis.destroy();

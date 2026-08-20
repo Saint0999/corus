@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Canvas } from "@react-three/fiber";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
 import { ACESFilmicToneMapping } from "three";
 
@@ -38,8 +44,7 @@ export const FAR = Math.hypot(CAMERA_Y, CAMERA_Z);
 /** How much of the z = 0 plane the wide camera sees, top to bottom, in world
  *  units — the conversion between the world the model lives in and the pixels
  *  anything measured in the DOM comes back in. */
-export const VIEW_HEIGHT =
-  2 * FAR * Math.tan(((FOV / 2) * Math.PI) / 180);
+export const VIEW_HEIGHT = 2 * FAR * Math.tan(((FOV / 2) * Math.PI) / 180);
 
 export const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -51,6 +56,46 @@ export const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
  *  camera that begins travelling at full speed reads as a cut. */
 export const easeInOut = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+/**
+ * How long a stage keeps drawing every frame after it mounts.
+ *
+ * Long enough to cover the longest reveal built on it — <SwitchFocus>'s, at
+ * 2150ms — plus <useReveal>'s lead-in and a margin. Overrun costs a second of
+ * frames on a panel the reader is looking at anyway; underrun leaves a reveal
+ * half drawn, so it errs long.
+ */
+const SETTLE_MS = 2800;
+
+/**
+ * How many times the stage the reader is looking at has been arrived at.
+ *
+ * A stage is built long before it is looked at — see <StageVisit> — so mounting
+ * can no longer be what starts its reveal. This is the signal that replaces it:
+ * every arrival is a new number, and everything that plays on arrival hangs off
+ * that changing rather than off a component appearing.
+ */
+const VisitContext = createContext(0);
+
+/**
+ * Marks one arrival at the stage inside it.
+ *
+ * A context rather than a prop because what has to hear about it is
+ * <useReveal>, called deep inside whichever visual this is wrapping, and
+ * threading a number through every visual to reach it would make each of them
+ * responsible for a mechanism none of them owns.
+ */
+export function StageVisit({
+  visit,
+  children,
+}: {
+  visit: number;
+  children: ReactNode;
+}) {
+  return (
+    <VisitContext.Provider value={visit}>{children}</VisitContext.Provider>
+  );
+}
 
 /** Read once, as a state initialiser rather than in an effect — a reader who
  *  has asked for less motion should get the finished frame on the first paint,
@@ -69,13 +114,24 @@ const prefersReducedMotion = () =>
  * React state rather than a `useFrame` mutation because what these numbers
  * drive is not only meshes — there are DOM labels and rebuilt line geometry
  * hanging off the same value, and one value driving one re-render keeps all of
- * them in the same frame by construction. It is over in about two seconds, and
- * the canvas is on `frameloop="demand"`, so this is also the only thing asking
- * for frames at all.
+ * them in the same frame by construction. It is over in about two seconds —
+ * which is also how long the stage below keeps drawing unprompted, so a reveal
+ * never has to be the thing that asks for its own frames.
  */
 export function useReveal(durationMs: number, delayMs = 220) {
+  const visit = useContext(VisitContext);
   const [reduced] = useState(prefersReducedMotion);
   const [progress, setProgress] = useState(reduced ? 1 : 0);
+  const [played, setPlayed] = useState(visit);
+
+  // Back to the start on a new arrival — and during the render that hears
+  // about it rather than in an effect afterwards, which is React's own way of
+  // adjusting state to a changed input. Doing it in an effect would let one
+  // frame be painted with the last visit's finished reveal still on screen.
+  if (visit !== played) {
+    setPlayed(visit);
+    setProgress(reduced ? 1 : 0);
+  }
 
   useEffect(() => {
     if (reduced) return;
@@ -92,17 +148,86 @@ export function useReveal(durationMs: number, delayMs = 220) {
 
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [reduced, durationMs, delayMs]);
+  }, [reduced, durationMs, delayMs, visit]);
 
   return progress;
 }
 
+/**
+ * Asks for a frame while the page is moving.
+ *
+ * `demand` rests on the last frame it drew still being on screen, and most of
+ * the time it is. But this panel lives in a section that PINS, and a sticky
+ * box changes compositing layers as it takes hold and lets go; a canvas whose
+ * drawing buffer is not preserved can come back from that cleared, with
+ * nothing left that would ask for the frame to fill it in again. One
+ * invalidation per scrolled frame is close to free and makes that state
+ * unreachable.
+ */
+function RedrawWhileScrolling() {
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        invalidate();
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [invalidate]);
+
+  return null;
+}
+
 export function PartStage({ children }: { children: ReactNode }) {
+  /**
+   * `demand` is what this stage wants to settle into: nothing on it animates
+   * of its own accord, and an idle 3D panel three quarters of the way down a
+   * page should not be costing anybody a GPU.
+   *
+   * It cannot start there, though. `demand` only draws when something asks,
+   * and on the way in there is a window where nothing does: <useReveal> holds
+   * at 0 through its lead-in, and setting state to the value it already has is
+   * not a render, so it is not a frame either. Arrive in that window with a
+   * canvas R3F has not measured yet — which is exactly what arriving by
+   * SCROLL does, since the measurement is debounced while the page moves — and
+   * the one frame that gets drawn is drawn at no size, with nothing left to
+   * ask for another. The panel then simply stays empty, which is what the
+   * keycap and switch visuals were doing when scrolled to rather than clicked.
+   *
+   * So it draws every frame until the reveal has landed, and goes quiet after.
+   */
+  const visit = useContext(VisitContext);
+  const [settled, setSettled] = useState(false);
+  const [drawn, setDrawn] = useState(visit);
+
+  // Every arrival reopens the window, not just the first: a stage that has
+  // gone quiet and is then come back to has a reveal to draw, and this is what
+  // guarantees it gets drawn.
+  if (visit !== drawn) {
+    setDrawn(visit);
+    setSettled(false);
+  }
+
+  useEffect(() => {
+    if (settled) return;
+
+    const timer = window.setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [settled]);
+
   return (
     <Canvas
-      // Nothing on this stage animates on its own: every frame it draws is one
-      // a reveal asked for, and once a reveal has landed it stops drawing.
-      frameloop="demand"
+      frameloop={settled ? "demand" : "always"}
       camera={{
         position: [0, CAMERA_Y, CAMERA_Z],
         fov: FOV,
@@ -131,7 +256,11 @@ export function PartStage({ children }: { children: ReactNode }) {
       <ambientLight intensity={0.14} color="#fff9f3" />
       <directionalLight position={[-4, 6, 5]} intensity={2.1} color="#fff1dd" />
       <directionalLight position={[5, 1, 4]} intensity={0.4} color="#cfd8e8" />
-      <directionalLight position={[0, 3, -6]} intensity={1.15} color="#ffe6c8" />
+      <directionalLight
+        position={[0, 3, -6]}
+        intensity={1.15}
+        color="#ffe6c8"
+      />
 
       <Environment resolution={128} frames={1}>
         <Lightformer
@@ -147,6 +276,8 @@ export function PartStage({ children }: { children: ReactNode }) {
           color="#ffb46a"
         />
       </Environment>
+
+      <RedrawWhileScrolling />
 
       {children}
     </Canvas>
