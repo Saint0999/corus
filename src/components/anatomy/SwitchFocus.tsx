@@ -15,6 +15,7 @@ import {
   clamp01,
   easeInOut,
   easeOut,
+  ENTRANCE_MS,
   useReveal,
 } from "@/components/anatomy/PartStage";
 
@@ -209,7 +210,8 @@ function Dolly({ zoom }: { zoom: number }) {
 }
 
 export function SwitchFocus() {
-  const t = useReveal(TOTAL_MS);
+  // Waits out the arrival before it opens — see ENTRANCE_MS.
+  const t = useReveal(TOTAL_MS, ENTRANCE_MS);
   const [choice, setChoice] = useState(0);
 
   const elapsed = t * TOTAL_MS;

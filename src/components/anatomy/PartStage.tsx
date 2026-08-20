@@ -67,6 +67,43 @@ export const easeInOut = (t: number) =>
  */
 const SETTLE_MS = 2800;
 
+/* --- The panel's changeover ----------------------------------------------
+ * Parts do not cut, and they do not cross either. The one leaving travels the
+ * full height of the panel out through the top; the one arriving comes up from
+ * a full height below the bottom. Both are clipped by the panel's own edges on
+ * the way, so at no point are two of them sharing the frame.
+ *
+ * Sequential, not overlapping: the arrival does not begin until the exit is
+ * essentially over. That is what the delay below is. It is a timed handoff
+ * rather than a watched one — nothing waits for the exit to report itself
+ * finished — so the delay and the exit's easing have to be read together; see
+ * the note on `pose` in <Anatomy>.
+ *
+ * The three numbers live here, together, because they are one shape and
+ * because two files depend on them: the slot's transition over in <Anatomy>,
+ * and the `delayMs` every reveal is given. A model that starts coming apart
+ * while it is still on its way in arrives as a cloud of loose parts. It should
+ * arrive as the object, and open once it is standing still.
+ * ---------------------------------------------------------------------- */
+
+/** The leaving part's travel, in ms. Slow enough to be watched: it is
+ *  crossing a whole panel height, and a full frame of travel taken in a third
+ *  of a second reads as a cut with a smear on it rather than as a departure. */
+export const EXIT_MS = 620;
+
+/** How long the arriving part waits before it starts — near enough all of the
+ *  exit, so the frame is clear before anything enters it. Held at about nine
+ *  tenths of EXIT_MS; the two move together. */
+export const ENTER_DELAY_MS = 560;
+
+/** The arriving part's travel, in ms. Longer than the exit: coming to rest in
+ *  front of the reader is worth more time than getting out of the way. */
+export const ENTER_MS = 700;
+
+/** From the selection changing to the new part standing still — what a reveal
+ *  has to wait out before it can open. */
+export const ENTRANCE_MS = ENTER_DELAY_MS + ENTER_MS;
+
 /**
  * How many times the stage the reader is looking at has been arrived at.
  *
@@ -117,8 +154,14 @@ const prefersReducedMotion = () =>
  * them in the same frame by construction. It is over in about two seconds —
  * which is also how long the stage below keeps drawing unprompted, so a reveal
  * never has to be the thing that asks for its own frames.
+ *
+ * `delayMs` is 0 by default and was not always: there used to be a fifth of a
+ * second of lead-in, from when a stage was built at the moment it was arrived
+ * at and needed a beat to have drawn anything before it started moving. Stages
+ * are built on load now and have been drawing since — so the beat is no longer
+ * a beat, it is just the reader waiting.
  */
-export function useReveal(durationMs: number, delayMs = 220) {
+export function useReveal(durationMs: number, delayMs = 0) {
   const visit = useContext(VisitContext);
   const [reduced] = useState(prefersReducedMotion);
   const [progress, setProgress] = useState(reduced ? 1 : 0);

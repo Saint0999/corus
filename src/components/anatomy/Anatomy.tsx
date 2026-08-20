@@ -10,7 +10,13 @@ import {
 } from "react";
 import Image from "next/image";
 import { KeycapExploded } from "@/components/anatomy/KeycapExploded";
-import { clamp01, StageVisit } from "@/components/anatomy/PartStage";
+import {
+  clamp01,
+  ENTER_DELAY_MS,
+  ENTER_MS,
+  EXIT_MS,
+  StageVisit,
+} from "@/components/anatomy/PartStage";
 import { SwitchFocus } from "@/components/anatomy/SwitchFocus";
 import { scrollToY } from "@/components/scroll/SmoothScroll";
 import { StaggeredText, type Segment } from "@/components/text/StaggeredText";
@@ -161,6 +167,58 @@ const PARTS: readonly Part[] = [
 const railFill = (progress: number) =>
   clamp01((progress * PARTS.length) / Math.max(1, PARTS.length - 1)).toFixed(4);
 
+/**
+ * Where a part's slot stands relative to the one on show, and how it gets
+ * there.
+ *
+ * The reader is travelling DOWN a list, so a part that has been passed parks a
+ * full panel height ABOVE the frame and a part still to come waits a full
+ * panel height BELOW it. Which side a slot is parked on is therefore not a
+ * matter of what it is doing — it is only where it sits in the list relative
+ * to where the reader is.
+ *
+ * A FULL height, rather than the nudge this started as, because the panel
+ * clips: parked at 100% a slot is not merely faint, it is outside the box
+ * altogether, and two parts can never be caught sharing the frame.
+ *
+ * The timing is what keeps them from sharing it in TIME either. The arrival
+ * waits out almost the whole exit before it starts, so the changeover reads as
+ * one part leaving and then another coming, not as a crossfade.
+ *
+ * Both directions ease IN AND OUT: each move gathers itself, travels, and
+ * settles, which is what makes a full panel height read as a considered move
+ * rather than a slide.
+ *
+ * The one easing that cannot be used here is a plain ease-in. The handoff is
+ * timed, not watched — the arrival starts at a fixed moment, not when the exit
+ * reports itself done — and an ease-in has covered barely a quarter of its
+ * travel by then, so the leaving part would still be most of the way in frame
+ * when the next one entered. `ease-in-out` is 98% of the way out at the same
+ * moment, which is what keeps the two of them from meeting.
+ *
+ * All poses are on one element, so the browser interpolates between them and
+ * there is no enter/exit bookkeeping to get wrong: a slot cannot be mid-exit
+ * and mid-entrance at once, because it only ever has one pose.
+ */
+const pose = (index: number, active: number) => {
+  if (index === active) {
+    return {
+      className: "translate-y-0 opacity-100 blur-0 ease-in-out",
+      style: {
+        transitionDuration: `${ENTER_MS}ms`,
+        transitionDelay: `${ENTER_DELAY_MS}ms`,
+      },
+    };
+  }
+
+  return {
+    className: `pointer-events-none opacity-0 blur-[10px] ease-in-out ${
+      index < active ? "-translate-y-full" : "translate-y-full"
+    }`,
+    style: { transitionDuration: `${EXIT_MS}ms`, transitionDelay: "0ms" },
+  };
+};
+
 /** Which part is showing, and how many times each has been arrived at. */
 type Selection = {
   readonly index: number;
@@ -195,7 +253,6 @@ export function Anatomy() {
   }));
 
   const { index: active, visits } = selection;
-  const part = PARTS[active];
 
   /** Choose a part. A no-op if it is the one already showing, so that a
    *  scroll inside one band does not count as arriving over and over. */
@@ -242,35 +299,34 @@ export function Anatomy() {
   /**
    * Whether the 3D stages have been built yet.
    *
-   * They are built EARLY — half a screen before the section arrives — and then
-   * kept, rather than being created when the reader reaches the part that
-   * needs one. Building one costs a WebGL context, five shader programs and
-   * fifty buffer uploads, and doing that in the frame the reader lands on the
-   * part is how a model arrives late on a machine slower than the one this was
-   * written on. Done here it happens while there is nothing to look at yet.
+   * They are built ON LOAD and then kept — not when the reader reaches the
+   * part that needs one, and no longer when the section comes near either.
+   * Building one costs a WebGL context, five shader programs and fifty buffer
+   * uploads, and every one of those is work that can be done at any time; the
+   * only bad time to do it is the frame the reader arrives on, which is the
+   * frame with the least to spare and the only one where the cost is visible.
    *
-   * One-way: once built they stay, because the point is not to pay for them
-   * twice.
+   * On the idle callback rather than straight away, because the one thing this
+   * must not do is compete with the hero: that is the first paint, it has a 3D
+   * canvas of its own, and this section is four screens below it. The timeout
+   * is the guarantee that "idle" arrives on a page that never quite goes
+   * quiet.
+   *
+   * One-way: once built they stay. Paying twice is the thing being avoided.
    */
   const [armed, setArmed] = useState(false);
 
   useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
+    if (typeof window.requestIdleCallback !== "function") {
+      const timer = window.setTimeout(() => setArmed(true), 300);
+      return () => window.clearTimeout(timer);
+    }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setArmed(true);
-        observer.disconnect();
-      },
-      // Half a screen of warning. The track is several screens tall, so this
-      // fires well before the section is anywhere near being read.
-      { rootMargin: "50% 0px" },
-    );
+    const handle = window.requestIdleCallback(() => setArmed(true), {
+      timeout: 1500,
+    });
 
-    observer.observe(track);
-    return () => observer.disconnect();
+    return () => window.cancelIdleCallback(handle);
   }, []);
 
   /**
@@ -637,85 +693,77 @@ export function Anatomy() {
                 is pinned inside. Capping the width caps the height with it and
                 the ratio survives. */}
             <div className="relative mx-auto aspect-[4/3] w-full max-w-[80vh] overflow-hidden rounded-2xl border border-line bg-surface-raised">
-              {/* Every 3D visual at once, from the moment the section is
-                  within half a screen — not the selected one, and not on
-                  arrival.
+              {/* Every part has a slot, and every slot is always there —
+                  nothing is keyed on the selection, nothing mounts on arrival.
 
-                  They used to be keyed on the selection, so that changing part
-                  built a stage and threw the last one away. That is the tidy
-                  version and it is the wrong one: it puts a WebGL context, five
-                  shader programs and fifty buffer uploads in the frame the
-                  reader lands on, which is the frame with the least to spare.
-                  Built up here instead, all of that is finished before the
-                  section is even on screen, and switching part is a change of
-                  opacity.
+                  Two reasons, arrived at separately. The stages were unkeyed
+                  first, because building one costs a WebGL context, five shader
+                  programs and fifty buffer uploads, and none of that belongs in
+                  the frame the reader lands on. The stills followed, because a
+                  still that is not in the tree cannot be shown LEAVING, and
+                  leaving is half of the move.
 
                   What the keying used to buy — the come-apart replaying each
                   time you come back to a part — is bought instead by
-                  <StageVisit>, which tells the reveal it has been arrived at
-                  without anything being torn down to say so. */}
-              {armed &&
-                PARTS.map((item, index) =>
-                  item.visual ? (
-                    <div
-                      key={item.name}
-                      aria-hidden={index !== active}
-                      // A transition, where the panel's stills use the
-                      // `blur-fade-in` keyframes: those play on mount, and
-                      // mounting is exactly what these no longer do when the
-                      // reader arrives.
-                      className={`absolute inset-0 transition-[opacity,filter] duration-500 ease-out ${
-                        index === active
-                          ? "opacity-100 blur-0"
-                          : "pointer-events-none opacity-0 blur-md"
-                      }`}
-                    >
+                  <StageVisit>, which says the part has been arrived at without
+                  anything being torn down to say so. */}
+              {PARTS.map((item, index) => {
+                // A stage is only in the tree once the page has built them —
+                // see `armed`. A still is always there, because a still that
+                // is not in the tree cannot be shown leaving.
+                if (item.visual && !armed) return null;
+
+                const { className, style } = pose(index, active);
+
+                return (
+                  <div
+                    key={item.name}
+                    aria-hidden={index !== active}
+                    style={style}
+                    className={`absolute inset-0 transition-[opacity,translate,filter] ${className}`}
+                  >
+                    {item.visual ? (
                       <StageVisit visit={visits[index]}>
                         {item.visual}
                       </StageVisit>
-                    </div>
-                  ) : null,
-                )}
-
-              {part.visual ? null : part.image ? (
-                /* `key` on the index, not the src: it is what makes React swap
-                   the element rather than patch it, so the blur-in replays on
-                   every change of part instead of only on first paint.
-
-                   The fit is the part's own — see `fit` on the type. A cutout
-                   of a whole part is `contain`, because the board is a 2.5:1
-                   slab and cropping it to the panel would cut the case off at
-                   both ends; a crop of a render is `cover`, because it was cut
-                   to this box in the first place. */
-                <Image
-                  key={active}
-                  src={part.image.src}
-                  alt={part.image.alt}
-                  fill
-                  sizes="(min-width: 1024px) 55vw, 90vw"
-                  // Above the 75 default: the cutout is a smooth grey slab with
-                  // a hairline chamfer running round it, and that edge is the
-                  // first thing a low-quality re-encode softens.
-                  quality={90}
-                  className={`blur-fade-in ${
-                    part.image.fit === "cover"
-                      ? "object-cover"
-                      : "object-contain p-4 sm:p-6"
-                  }`}
-                />
-              ) : (
-                /* Placeholder for the parts whose visuals are still being built.
-                   It is here so an empty panel reads as "not yet" rather than as
-                   a broken box, and it goes as the last one lands. */
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-                  <span className="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-ink-muted/60">
-                    {part.name}
-                  </span>
-                  <span className="text-sm font-light text-ink-muted/40">
-                    Visual to come
-                  </span>
-                </div>
-              )}
+                    ) : item.image ? (
+                      /* The fit is the part's own — see `fit` on the type. A
+                         cutout of a whole part is `contain`, because the board
+                         is a 2.5:1 slab and cropping it to the panel would cut
+                         the case off at both ends; a crop of a render is
+                         `cover`, because it was cut to this box already. */
+                      <Image
+                        src={item.image.src}
+                        alt={item.image.alt}
+                        fill
+                        sizes="(min-width: 1024px) 55vw, 90vw"
+                        // Above the 75 default: the cutout is a smooth grey
+                        // slab with a hairline chamfer running round it, and
+                        // that edge is the first thing a low-quality re-encode
+                        // softens.
+                        quality={90}
+                        className={
+                          item.image.fit === "cover"
+                            ? "object-cover"
+                            : "object-contain p-4 sm:p-6"
+                        }
+                      />
+                    ) : (
+                      /* For a part whose visual is still being built: an empty
+                         panel should read as "not yet" rather than as a broken
+                         box. */
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center">
+                        <span className="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-ink-muted/60">
+                          {item.name}
+                        </span>
+                        <span className="text-sm font-light text-ink-muted/40">
+                          Visual to come
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Container>

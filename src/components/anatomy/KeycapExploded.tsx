@@ -22,6 +22,7 @@ import {
   VIEW_HEIGHT,
   clamp01,
   easeOut,
+  ENTRANCE_MS,
   useReveal,
 } from "@/components/anatomy/PartStage";
 
@@ -311,7 +312,9 @@ function Diagram({ explode, labelPx }: { explode: number; labelPx: number }) {
 }
 
 export function KeycapExploded() {
-  const explode = easeOut(useReveal(OPEN_MS));
+  // Held closed until the stack has finished rising into the frame — see
+  // ENTRANCE_MS. The keycap arrives as one object and comes apart after.
+  const explode = easeOut(useReveal(OPEN_MS, ENTRANCE_MS));
   const [labelPx, setLabelPx] = useState(0);
 
   // Measured from a hidden copy of the widest label, in the ordinary DOM,
