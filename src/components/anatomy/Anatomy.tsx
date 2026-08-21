@@ -5,11 +5,10 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import Image from "next/image";
-import { KeySwitchStage } from "@/components/anatomy/KeySwitchStage";
 import {
   clamp01,
   ENTER_DELAY_MS,
@@ -104,7 +103,21 @@ type Part = {
      */
     fit?: "contain" | "cover";
   };
-  visual?: ReactNode;
+  /**
+   * Which live visual this part uses, if any — an ID, not a component
+   * instance.
+   *
+   * It used to BE the JSX element, built once at module scope and shared by
+   * reference between the two parts that show it — the reference equality is
+   * what SLOTS below reads to know two parts are one stage. That stopped
+   * being possible once the component moved behind a lazy `import()` (see
+   * `useKeySwitchStage` in <Anatomy>): the element can only be built once
+   * `armed` is true AND the module has actually finished loading, so PARTS —
+   * built at module scope, before either is true — can only name the visual,
+   * not construct it. String equality between two parts' ids does the same
+   * job the reference equality used to.
+   */
+  visual?: "key-switch";
   /**
    * Which way this part crosses the panel.
    *
@@ -135,11 +148,6 @@ type Part = {
  * The details are the surviving content of the old spec table. One line each,
  * on purpose: a part that needs a paragraph needs a better visual instead.
  */
-// An element, not a component reference: this is a description of what to
-// render, and it is declared once, up here, because two parts share it and
-// sharing it is what tells the panel they are one stage.
-const KEY_SWITCH = <KeySwitchStage />;
-
 const PARTS: readonly Part[] = [
   {
     name: "The Keyboard",
@@ -157,12 +165,12 @@ const PARTS: readonly Part[] = [
   {
     name: "Keycaps",
     detail: "Dye sub PBT, uniform profile",
-    visual: KEY_SWITCH,
+    visual: "key-switch",
   },
   {
     name: "Switch",
     detail: "Tactile / 55g / two-stage spring / factory lubed",
-    visual: KEY_SWITCH,
+    visual: "key-switch",
   },
   {
     name: "Knobs",
@@ -447,6 +455,35 @@ export function Anatomy() {
 
     return () => window.cancelIdleCallback(handle);
   }, []);
+
+  /**
+   * The "key-switch" visual's component, fetched only once `armed` is true.
+   *
+   * A plain `import()` inside this effect, not `next/dynamic`: Next's
+   * build-time transform preloads a `dynamic()` component's chunk as soon as
+   * its JSX reference exists anywhere in the tree, regardless of the `armed`
+   * guard the slot below renders it behind — confirmed by watching the chunk
+   * request fire on a fresh load, seconds before `armed` ever flips. This has
+   * no such static reference for Next to find, so it only ever runs once
+   * `armed` actually does.
+   */
+  const [KeySwitchStage, setKeySwitchStage] = useState<ComponentType | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!armed) return;
+
+    let cancelled = false;
+
+    import("@/components/anatomy/KeySwitchStage").then(({ KeySwitchStage }) => {
+      if (!cancelled) setKeySwitchStage(() => KeySwitchStage);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [armed]);
 
   /**
    * The selection, read off the scroll position.
@@ -903,9 +940,14 @@ export function Anatomy() {
                     style={style}
                     className={`absolute inset-0 transition-[opacity,translate,filter] ${className}`}
                   >
-                    {item.visual ? (
+                    {item.visual === "key-switch" ? (
                       <StageVisit visit={visits[index]} focus={focus}>
-                        {item.visual}
+                        {/* `null` for the brief window between `armed`
+                            flipping and the chunk's fetch/parse landing —
+                            the panel simply stays empty a beat longer than
+                            it used to, the same as the still-image parts
+                            already do below while their own asset loads. */}
+                        {KeySwitchStage && <KeySwitchStage />}
                       </StageVisit>
                     ) : item.image ? (
                       /* The fit is the part's own — see `fit` on the type. A

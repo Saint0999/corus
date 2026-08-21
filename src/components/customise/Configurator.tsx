@@ -143,10 +143,15 @@ export function Configurator() {
           <div className="mt-6 flex items-baseline justify-between">
             <span className="text-sm text-ink-muted">Total</span>
             {/* `aria-live` announces the new total to screen-reader users when
-                a selection changes, since nothing else moves on screen. */}
+                a selection changes, since nothing else moves on screen.
+                `tabular-nums`: every digit takes the same width, so picking a
+                pricier option does not visibly jitter the total sideways as
+                proportional-width figures swap in — Inter's `1` is narrower
+                than its `8`. The same fix the key-switch bench's readout
+                already uses, applied to the number that actually matters. */}
             <span
               aria-live="polite"
-              className="text-3xl font-normal text-accent"
+              className="text-3xl font-normal tabular-nums text-accent"
             >
               {priceFormatter.format(total)}
             </span>

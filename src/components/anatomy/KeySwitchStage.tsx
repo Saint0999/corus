@@ -27,7 +27,6 @@ import {
   ENTRANCE_MS,
   FAR,
   MODEL_SPIN,
-  PartStage,
   VIEW_HEIGHT,
   clamp01,
   easeOut,
@@ -35,6 +34,9 @@ import {
   useReveal,
   useStageFocus,
 } from "@/components/anatomy/PartStage";
+// The actual `<Canvas>` this stage renders into — kept in its own,
+// three-dependent file. See the note at the top of PartCanvas.tsx.
+import { PartStage } from "@/components/anatomy/PartCanvas";
 
 /**
  * The key, taken apart and called out, and then the switch inside it — the
