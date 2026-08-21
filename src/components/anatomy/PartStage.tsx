@@ -372,14 +372,16 @@ export function PartStage({ children }: { children: ReactNode }) {
     >
       {/* The board's rig — the part is lit by the light the rest of the site is
           lit by, so the cream cap and the terracotta stem land on the same
-          values here as they do on the hero render. */}
-      <ambientLight intensity={0.14} color="#fff9f3" />
-      <directionalLight position={[-4, 6, 5]} intensity={2.1} color="#fff1dd" />
+          values here as they do on the hero render. Which means these numbers
+          are COPIES: they were pulled back towards neutral with the hero's,
+          and if those move again these have to move with them. */}
+      <ambientLight intensity={0.14} color="#fffcf9" />
+      <directionalLight position={[-4, 6, 5]} intensity={2.1} color="#fff6e9" />
       <directionalLight position={[5, 1, 4]} intensity={0.4} color="#cfd8e8" />
       <directionalLight
         position={[0, 3, -6]}
         intensity={1.15}
-        color="#ffe6c8"
+        color="#ffeeda"
       />
 
       <Environment resolution={128} frames={1}>
@@ -387,13 +389,13 @@ export function PartStage({ children }: { children: ReactNode }) {
           intensity={2.2}
           position={[0, 3.2, 2.5]}
           scale={[10, 5, 1]}
-          color="#fff6ec"
+          color="#fffaf3"
         />
         <Lightformer
-          intensity={0.7}
+          intensity={0.62}
           position={[3.4, -1.2, 2.2]}
           scale={[3, 4, 1]}
-          color="#ffb46a"
+          color="#ffc98f"
         />
       </Environment>
 

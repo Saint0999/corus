@@ -537,11 +537,21 @@ function Scene({
           (metalness tops out at 0.32), so punctual lights carry it and the
           environment below is there for the specular roll-off on the
           anodised case rather than to make the metal exist at all. */}
+      {/* Every colour in this rig was pulled back towards neutral by about a
+          third of its warmth. Warm it still is, and deliberately — the note on
+          the case material explains what a blue-grey board on a black page
+          looked like — but the case is metallic, and a metal is mostly
+          whatever it can see. What it could see was five warm sources at once,
+          which compounded into a cast the aluminium read as olive rather than
+          as silver in a warm room. The blue deficit of each one below is
+          roughly two thirds of what it was; the amber spill, which the case
+          takes the most of, came down furthest and lost a little intensity
+          with it. */}
       {/* Ambient is TINTED and low. On a black page it is the one light with
           nowhere to fall off, so it is the fastest way to flatten a render —
           but a few points of it in the key light's own colour is what stops
           the shadow side going blue by default. */}
-      <ambientLight intensity={0.14} color="#fff9f3" />
+      <ambientLight intensity={0.14} color="#fffcf9" />
       {/* Key: high and camera-left, so the keycap tops catch it while the
           board is still tilted. Warm, around 5000K — this is the light doing
           the grading, and every warm surface in the table above is warm
@@ -549,7 +559,7 @@ function Scene({
       <directionalLight
         position={[-4, 6, 5]}
         intensity={2.1}
-        color="#fff1dd"
+        color="#fff6e9"
       />
       {/* Fill: opposite side, weak, keeps the shadow side off pure black —
           and deliberately COOL against a warm key. That split is most of what
@@ -566,7 +576,7 @@ function Scene({
       <directionalLight
         position={[0, 3, -6]}
         intensity={1.15}
-        color="#ffe6c8"
+        color="#ffeeda"
       />
 
       {/* Rendered into a cubemap once, on mount — no HDR is fetched, so this
@@ -580,7 +590,7 @@ function Scene({
           intensity={2.2}
           position={[0, 3.2, 2.5]}
           scale={[10, 5, 1]}
-          color="#fff6ec"
+          color="#fffaf3"
         />
         {/* Low and camera-right, in the screen's own amber, roughly where the
             display sits on the board. It is not lighting the screen — the
@@ -593,10 +603,10 @@ function Scene({
             cast: the case is metallic, so its colour is mostly whatever it can
             see, and what it could see was green. */}
         <Lightformer
-          intensity={0.7}
+          intensity={0.62}
           position={[3.4, -1.2, 2.2]}
           scale={[3, 4, 1]}
-          color="#ffb46a"
+          color="#ffc98f"
         />
       </Environment>
 

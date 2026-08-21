@@ -89,6 +89,26 @@ type Part = {
     fit?: "contain" | "cover";
   };
   visual?: ReactNode;
+  /**
+   * Which way this part crosses the panel.
+   *
+   * `vertical` — the default — is the reader's own direction: the part rises
+   * from below the frame as they come down the list, and leaves through the
+   * top. It suits anything that fills the panel, because what enters first is
+   * an edge of the image rather than the image itself.
+   *
+   * `horizontal` is for the ones it does not suit. A cutout on transparency
+   * rising into frame reads as a cutout being PUSHED UP — the eye reads the
+   * bottom edge of the artwork as a bottom edge of an object, and the object
+   * appears to be sitting on something. Coming in from the side, the same
+   * artwork just arrives.
+   *
+   * A horizontal part uses ONE edge, not two: it comes in from the left and
+   * goes back out to the left. That is the difference between a cutout being
+   * brought out to be looked at and put away again, and a cutout being carried
+   * past on a belt.
+   */
+  axis?: "vertical" | "horizontal";
 };
 
 /**
@@ -131,6 +151,11 @@ const PARTS: readonly Part[] = [
   {
     name: "Knobs",
     detail: "ABS plastic, two of them, both programmable",
+    // Crosses sideways. Rising into frame, this crop's straight bottom cut sat
+    // level with the panel's own bottom edge on the way in, and the whole
+    // thing read as a sticker being slid up into place rather than as the
+    // corner of a keyboard.
+    axis: "horizontal",
     // The corner of the three-quarter render the knobs live on, cut free of
     // its backdrop and cropped to the panel's 4:3 — close enough that the
     // knurling reads, and framed to keep the screen and a modifier beside
@@ -144,6 +169,10 @@ const PARTS: readonly Part[] = [
   {
     name: "Screen",
     detail: "100×310 px full-colour LCD",
+    // Sideways, like the knobs before it. These two are crops of the same
+    // board taken from the same angle, and the pair reads as one object being
+    // turned over when they arrive the same way.
+    axis: "horizontal",
     // From the same top-down cutout the board at 01 is taken from, so this is
     // 01 walked in on: no new lighting, no second version of the part. Framed
     // past the case's right edge, because half of what there is to see about
@@ -212,6 +241,12 @@ const slotOf = (index: number) =>
  * matter of what it is doing — it is only where it sits in the list relative
  * to where the reader is.
  *
+ * A part can cross sideways instead — see `axis` — and that one does not
+ * follow the rule at all: it parks off the LEFT edge whichever side of the
+ * reader it is on, so it leaves through the same edge it arrived by. Carrying
+ * it out the far side would make the panel a conveyor; bringing it back the
+ * way it came makes it a thing that was fetched and then put away.
+ *
  * A FULL height, rather than the nudge this started as, because the panel
  * clips: parked at 100% a slot is not merely faint, it is outside the box
  * altogether, and two parts can never be caught sharing the frame.
@@ -238,7 +273,7 @@ const slotOf = (index: number) =>
 const pose = (slot: Slot, active: number) => {
   if (active >= slot.from && active <= slot.to) {
     return {
-      className: "translate-y-0 opacity-100 blur-0 ease-in-out",
+      className: "translate-x-0 translate-y-0 opacity-100 blur-0 ease-in-out",
       style: {
         transitionDuration: `${ENTER_MS}ms`,
         transitionDelay: `${ENTER_DELAY_MS}ms`,
@@ -246,10 +281,15 @@ const pose = (slot: Slot, active: number) => {
     };
   }
 
+  const parked =
+    slot.part.axis === "horizontal"
+      ? "-translate-x-full"
+      : slot.to < active
+        ? "-translate-y-full"
+        : "translate-y-full";
+
   return {
-    className: `pointer-events-none opacity-0 blur-[10px] ease-in-out ${
-      slot.to < active ? "-translate-y-full" : "translate-y-full"
-    }`,
+    className: `pointer-events-none opacity-0 blur-[10px] ease-in-out ${parked}`,
     style: { transitionDuration: `${EXIT_MS}ms`, transitionDelay: "0ms" },
   };
 };
