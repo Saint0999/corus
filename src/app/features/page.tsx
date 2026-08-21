@@ -7,7 +7,7 @@ import { buttonPrimary, eyebrow, panel } from "@/lib/styles";
 export const metadata: Metadata = {
   title: "Features",
   description:
-    "Gasket mounting, hot-swap sockets, QMK/VIA firmware and hand-tuned acoustics — what goes into every Corus board.",
+    "Gasket mounting, hot-swap sockets, QMK/VIA firmware and hand-tuned acoustics. What goes into every Corus board.",
 };
 
 const FEATURES = [
@@ -33,7 +33,7 @@ const FEATURES = [
   },
   {
     title: "South-facing RGB",
-    body: "LEDs sit below the switch so Cherry-profile keycaps clear them — even lighting, no interference.",
+    body: "LEDs sit below the switch so Cherry-profile keycaps clear them. Even lighting, no interference.",
   },
 ] as const;
 

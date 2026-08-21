@@ -48,7 +48,7 @@ const ROWS: readonly (readonly Testimonial[])[] = [
   [
     {
       quote:
-        "Three weeks in and I still stop to listen to it. The thock is not a gimmick — it is the whole reason I type on this instead of the laptop.",
+        "Three weeks in and I still stop to listen to it. The thock is not a gimmick. It is the whole reason I type on this instead of the laptop.",
       name: "Priya Raghunathan",
       detail: "Backend engineer, Bengaluru",
     },
@@ -78,7 +78,7 @@ const ROWS: readonly (readonly Testimonial[])[] = [
     },
     {
       quote:
-        "Support answered a stabiliser question on a Sunday with a video of the fix. Not a template — an actual video of the actual board.",
+        "Support answered a stabiliser question on a Sunday with a video of the fix. Not a template, an actual video of the actual board.",
       name: "Marcus Whitfield",
       detail: "Data analyst, Leeds",
     },
@@ -104,7 +104,7 @@ const ROWS: readonly (readonly Testimonial[])[] = [
     },
     {
       quote:
-        "Four weeks felt long until it turned up. You can tell someone typed on it before it was boxed — there were fingerprints on the test sheet.",
+        "Four weeks felt long until it turned up. You can tell someone typed on it before it was boxed. There were fingerprints on the test sheet.",
       name: "Elena Vasquez",
       detail: "Copywriter, Buenos Aires",
     },

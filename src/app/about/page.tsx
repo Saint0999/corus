@@ -6,7 +6,7 @@ import { buttonSecondary, eyebrow, panel } from "@/lib/styles";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Corus is a small workshop building custom mechanical keyboards to order — no stock models, no mass production.",
+    "Corus is a small workshop building custom mechanical keyboards to order. No stock models, no mass production.",
 };
 
 const PRINCIPLES = [

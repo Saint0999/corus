@@ -7,8 +7,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   // `%s` is replaced by each page's own `title`; the home page uses `default`.
   title: {
-    default: "Corus — Custom mechanical keyboards",
-    template: "%s — Corus",
+    default: "Corus | Custom mechanical keyboards",
+    template: "%s | Corus",
   },
   description:
     "Corus builds custom mechanical keyboards one at a time: lubed switches, foam-damped cases and a sound profile you choose before assembly.",
