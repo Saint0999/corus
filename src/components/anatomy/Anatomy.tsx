@@ -35,12 +35,17 @@ import { eyebrow } from "@/lib/styles";
  * it swaps when the selection changes — lives here, so adding a part's visual
  * is a matter of filling `PARTS[n].visual` rather than touching the layout.
  *
- * From `lg` up the section is PINNED: it is `STEP_VH` of page per part taller
- * than the screen, and the frame inside it sticks to the top for that whole
- * distance, so the reader scrolls THROUGH the parts without the section moving
- * — one part at a time, in order, hands-free. Below `lg` there is no room to
- * hold a square and a column of type still at once, so the section is an
- * ordinary block and the list is what it looks like: a set of buttons.
+ * Wherever there is a screen to give away the section is PINNED: it is
+ * `STEP_VH` of page per part taller than the screen, and the frame inside it
+ * sticks to the top for that whole distance, so the reader scrolls THROUGH the
+ * parts without the section moving — one part at a time, in order, hands-free.
+ *
+ * "A screen to give away" is a question about HEIGHT, and it used to be asked
+ * as `lg:` — a width — which is why this never pinned on a phone: a phone has
+ * the height for it and always has. What it does not have is the width to hold
+ * a square BESIDE a column of type, so the pinned frame comes in two layouts,
+ * one column and two, and only the short-window case is left unpinned. See the
+ * `pinned` variant in globals.css.
  *
  * The scroll position is the state in pinned mode, which is what keeps the two
  * ways in from disagreeing: clicking a row does not set the selection, it
@@ -62,6 +67,17 @@ import { eyebrow } from "@/lib/styles";
  * instead of being a number to remember when one is added.
  */
 const STEP_VH = 60;
+
+/**
+ * When the section pins, as a media query.
+ *
+ * Duplicated from the `pinned` variant in globals.css — the pin itself is pure
+ * CSS, and this is only read to decide whether the SCROLL drives the
+ * selection. Measuring the layout to find out which layout we are in would be
+ * the alternative, and it would be a reflow on every resize to answer a
+ * question the stylesheet already knows the answer to.
+ */
+const PIN_QUERY = "(min-width: 64rem), (min-height: 40rem)";
 
 type Part = {
   /** The name in the list, and the caption on the panel. */
@@ -362,23 +378,36 @@ export function Anatomy() {
   /** The track — the tall box the frame is pinned inside of. */
   const trackRef = useRef<HTMLElement | null>(null);
 
+  /**
+   * The frame — the one-screen box that sticks to the top of the track.
+   *
+   * Held so its height can be MEASURED rather than assumed. How far the track
+   * scrolls while the frame is pinned is the track's height minus the frame's,
+   * and that used to be written as `window.innerHeight` on the grounds that
+   * the frame was `h-screen`. On a phone it is neither: the frame is sized in
+   * `dvh` so a collapsing browser toolbar cannot leave a strip of the next
+   * section showing under a section that is supposed to be holding still, and
+   * `innerHeight` moves with that toolbar while the track — sized in `svh`,
+   * because a page whose total height changes mid-scroll is a page that jumps
+   * under the reader — does not. Asking the frame is the only way the two
+   * agree.
+   */
+  const frameRef = useRef<HTMLDivElement | null>(null);
+
   /** The rail behind the bullets, and the bullets it has to reach between. */
   const railRef = useRef<HTMLSpanElement | null>(null);
   const bulletsRef = useRef<(HTMLSpanElement | null)[]>([]);
 
   /**
-   * Whether the section is currently the pinned one.
+   * Whether the section is currently the pinned one — see `PIN_QUERY`.
    *
-   * The breakpoint is duplicated from the class list, which is a thing to keep
-   * in step, but the alternative is measuring layout to find out which layout
-   * we are in. It is only ever read to decide whether the SCROLL drives the
-   * selection; the pin itself is pure CSS and correct before this resolves, so
-   * a frame of it being wrong costs nothing.
+   * The pin is pure CSS and correct before this resolves, so a frame of it
+   * being wrong costs nothing.
    */
   const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 64rem)");
+    const query = window.matchMedia(PIN_QUERY);
     const sync = () => setPinned(query.matches);
 
     sync();
@@ -443,7 +472,7 @@ export function Anatomy() {
       frame = 0;
 
       const { top, height } = track.getBoundingClientRect();
-      const travel = height - window.innerHeight;
+      const travel = height - (frameRef.current?.offsetHeight ?? 0);
       if (travel <= 0) return;
 
       const progress = clamp01(-top / travel);
@@ -549,7 +578,7 @@ export function Anatomy() {
       }
 
       const { top, height } = track.getBoundingClientRect();
-      const travel = height - window.innerHeight;
+      const travel = height - (frameRef.current?.offsetHeight ?? 0);
       const band = (index + 0.5) / PARTS.length;
 
       scrollToY(window.scrollY + top + travel * band);
@@ -564,12 +593,32 @@ export function Anatomy() {
       // is derived from the parts rather than from a number that has to be
       // remembered when one is added.
       style={{ "--steps": PARTS.length, "--step": STEP_VH } as CSSProperties}
-      className="pt-10 pb-28 sm:pt-14 sm:pb-36 lg:h-[calc((var(--steps)*var(--step)+100)*1vh)] lg:py-0"
+      // `svh`, not `vh`: on a phone `vh` is the LARGE viewport — the height the
+      // page would have if the browser's toolbars were hidden — so a track
+      // measured in it is a track that is one toolbar too tall for the frame
+      // to have finished its travel by the time the section ends. `svh` is the
+      // small one, it is the same number as `vh` on a desktop, and it is fixed:
+      // it does not move when the toolbar does, so the page's total height
+      // never changes under the reader mid-scroll.
+      className="pt-10 pb-28 [--reserve:27rem] sm:pt-14 sm:pb-36 sm:[--reserve:34rem] pinned:h-[calc((var(--steps)*var(--step)+100)*1svh)] pinned:py-0"
     >
-      {/* The frame. `h-screen` and centred rather than `top-0` alone: a sticky
-          box shorter than the screen would pin with the page still visibly
-          moving behind it, which reads as a bug rather than as a hold. */}
-      <div className="lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:justify-center">
+      {/* The frame. A full screen and centred rather than `top-0` alone: a
+          sticky box shorter than the screen would pin with the page still
+          visibly moving behind it, which reads as a bug rather than as a hold.
+
+          `dvh` here, against the `svh` on the track, and the mismatch is
+          deliberate. This is the one box whose job is to cover what is behind
+          it, and `svh` would leave a strip of the next section showing under
+          it every time a phone's toolbar collapsed — which is the exact bug
+          the full height is here to prevent. `dvh` tracks the toolbar, so the
+          frame is always precisely the screen. It costs a few pixels of
+          re-centring as the toolbar animates, which is nothing next to the
+          page reflowing, and it is why the travel is measured off this element
+          rather than off `innerHeight`. */}
+      <div
+        ref={frameRef}
+        className="pinned:sticky pinned:top-0 pinned:flex pinned:h-[100dvh] pinned:flex-col pinned:justify-center"
+      >
         <Container>
           {/* Both sweeps run in the FIRST FIFTH of their range, which is not
               where these numbers would sit on an ordinary block.
@@ -586,9 +635,10 @@ export function Anatomy() {
               So the whole sweep is spent on the APPROACH — the ~20% of the
               track that runs from the heading clearing the bottom edge to the
               frame pinning — and both lines are resolved by the time the
-              section takes hold. Below `lg` nothing is pinned and the range is
-              an ordinary one, where this reads as a heading that resolves as
-              it rises rather than once it has arrived.
+              section takes hold. Both pinned layouts have the same shape of
+              track, so the same range serves both; unpinned, on a window too
+              short to hold anything still, the pass is an ordinary one and
+              these ranges read as a heading that resolves as it rises.
 
               The eyebrow still leads: earlier, faster, and finished about when
               the heading's first characters are resolving. Same range for both
@@ -625,7 +675,7 @@ export function Anatomy() {
               square, and sits on the panel's middle line rather than hanging
               from its top edge. Below `lg` the grid is one column and the
               alignment has nothing to do — the list is simply above the panel. */}
-          <div className="mt-12 grid items-center gap-10 sm:mt-16 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16">
+          <div className="mt-8 grid items-center gap-6 sm:mt-16 sm:gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16">
             {/* --- Left: the parts list ---------------------------------------
                 Real <button>s in a list, not divs with click handlers: this is a
                 set of choices, and buttons come with the keyboard and the focus
@@ -641,9 +691,10 @@ export function Anatomy() {
                   five separate lights going on and off.
 
                   `top`/`bottom` here are that measurement written down — one
-                  row's top padding plus half a name line, at both ends — which
-                  is what the server renders and what holds until the effect
-                  above runs. It is exact now that every row is the same height;
+                  row's top padding plus half a name line, at both ends, which
+                  is why there are two of them: the rows are tighter below `sm`
+                  so the frame fits a phone screen. It is what the server
+                  renders and what holds until the effect above runs. It is exact now that every row is the same height;
                   the effect keeps it exact if the padding or the type ever
                   moves. Setting `top` and `height` makes a box with all three
                   of top, height and bottom ignore the bottom, so the measured
@@ -656,7 +707,7 @@ export function Anatomy() {
                 ref={railRef}
                 aria-hidden="true"
                 style={{ "--fill": 0 } as CSSProperties}
-                className="absolute top-[2.125rem] bottom-[2.125rem] left-[3px] w-px -translate-x-1/2 bg-line"
+                className="absolute top-[1.75rem] bottom-[1.75rem] left-[3px] w-px -translate-x-1/2 bg-line sm:top-[2.125rem] sm:bottom-[2.125rem]"
               >
                 <span
                   className={`block h-full w-full origin-top scale-y-[var(--fill)] bg-accent ${
@@ -683,7 +734,7 @@ export function Anatomy() {
                       type="button"
                       onClick={() => select(index)}
                       aria-current={isActive ? "true" : undefined}
-                      className={`group flex w-full items-center gap-3 py-5 text-left transition-colors duration-200 ${
+                      className={`group flex w-full items-center gap-3 py-3.5 text-left transition-colors duration-200 sm:py-5 ${
                         isActive ? "text-ink" : "text-ink-muted hover:text-ink"
                       }`}
                     >
@@ -776,13 +827,42 @@ export function Anatomy() {
                 On a narrow viewport this sits BELOW the list; the grid only
                 splits into columns at `lg`, where there is room for a square
                 beside a column of type. */}
-            {/* `max-w` in VH, which looks wrong and is not: it is the only way
-                to cap a fixed-ratio box by the screen's HEIGHT. Pinned, the
-                frame has one screen to fit a heading and a square into, and on a
-                short window an unbounded 4:3 panel is taller than the window it
-                is pinned inside. Capping the width caps the height with it and
-                the ratio survives. */}
-            <div className="relative mx-auto aspect-[4/3] w-full max-w-[80vh] overflow-hidden rounded-2xl border border-line bg-surface-raised">
+            {/* `max-w` in viewport HEIGHT, which looks wrong and is not: it is
+                the only way to cap a fixed-ratio box by the screen's height.
+                Pinned, the frame has one screen to fit a heading and a panel
+                into, and an uncapped 4:3 panel is taller than the window it is
+                pinned inside.
+
+                Two caps, because the two pinned layouts are under different
+                pressure. Side by side at `lg` the panel has half the width and
+                nothing above it but a heading, and `80vh` is slack that only
+                ever bites on a short desktop window. Stacked, it has the whole
+                width AND the five rows of the list above it, so the cap is
+                written as what is LEFT: one screen, less everything above the
+                panel, turned back into a width by the panel's own ratio.
+
+                That "everything above" is `--reserve`, and it is set on the
+                section rather than written in here because it is not one
+                number: the type and the row padding both step up at `sm`, and
+                a reserve calibrated on the phone spacing is ~7rem short of the
+                truth on a tablet — which is exactly the overflow it exists to
+                prevent. Setting it up there also keeps it out of a fight with
+                the `lg` cap below: one utility per breakpoint on the section
+                resolves by ordinary cascade, where two competing `max-w`
+                variants on this element resolve by whichever way Tailwind
+                happened to sort them.
+
+                It is a number that has to be kept in step with the spacing
+                above by hand. The alternative is measuring the list every
+                frame to size the box under it, and this is a layout, not a
+                negotiation.
+
+                They cannot both apply: `lg` and `pinned-narrow` are opposite
+                sides of the same breakpoint, which is what that variant is for.
+                Unpinned — a window too short to hold any of this still — there
+                is no cap at all, because there is no frame to fit inside of and
+                a capped panel would just be a small one for no reason. */}
+            <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden rounded-2xl border border-line bg-surface-raised pinned-narrow:max-w-[calc((100svh-var(--reserve))*4/3)] lg:max-w-[80vh]">
               {/* Every part has a slot, and every slot is always there —
                   nothing is keyed on the selection, nothing mounts on arrival.
 

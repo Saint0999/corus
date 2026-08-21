@@ -89,6 +89,44 @@
     SFMono-Regular, Menlo, monospace;
 }
 
+/* ------------------------------------------------------------------------
+ * Pinned-section variants — see components/anatomy/Anatomy.tsx
+ *
+ * A section that holds still while the reader scrolls THROUGH it needs one
+ * screen to hold its contents in. Whether there is one is a question about
+ * HEIGHT, and asking it as `lg:` — a width — is what kept the anatomy section
+ * from ever pinning on a phone, where the height is there and the width is
+ * not.
+ *
+ * So `pinned` asks the real question: is this a desktop layout, or is the
+ * window tall enough to give a screen away? 40rem is the floor at which the
+ * mobile frame — heading, five rows and a 4:3 panel — still fits with the
+ * panel big enough to be worth looking at. Under that there is no pin and the
+ * section is an ordinary block, which is what it always was below `lg`.
+ *
+ * `pinned-narrow` is the same condition minus the desktop half: the cases
+ * where the section pins in its ONE-COLUMN layout. It exists so the handful of
+ * rules that differ between the two pinned layouts can be written against
+ * `lg:` and `pinned-narrow:` — two ranges that cannot both match — rather than
+ * as `pinned:` and `lg:` overriding each other, where which one wins comes
+ * down to the order Tailwind happens to emit them in.
+ *
+ * The media text is duplicated in Anatomy.tsx's `matchMedia` call, which reads
+ * the same condition to decide whether the SCROLL drives the selection. Change
+ * one and change the other.
+ * ---------------------------------------------------------------------- */
+@custom-variant pinned {
+  @media (min-width: 64rem), (min-height: 40rem) {
+    @slot;
+  }
+}
+
+@custom-variant pinned-narrow {
+  @media (min-height: 40rem) and (max-width: 63.999rem) {
+    @slot;
+  }
+}
+
 html {
   /* Tells the browser to render native UI (scrollbars, form controls,
    * autofill) in dark mode so nothing flashes white. */
