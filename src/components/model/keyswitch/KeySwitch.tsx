@@ -44,8 +44,8 @@ import {
  */
 const PARTS = {
   keycap: {
-    // `keycap-offwhite`. Warm off-white PBT with a semi-matte sheen.
-    color: "#ece9e1",
+    // `keycap-offwhite`. Off-white PBT, a touch cool, with a semi-matte sheen.
+    color: "#e9eaed",
     metalness: 0,
     roughness: 0.42,
     env: 1.15,
@@ -54,9 +54,9 @@ const PARTS = {
     // Blue, and the default rather than a choice: a switch's slider is the one
     // part of a keyboard that is colour-coded by convention, and blue is the
     // one everybody knows. It is also the value this part needs — a mid,
-    // saturated hue holds its own between the cream cap above it and the two
-    // near-black housings below, which is what the terracotta that used to be
-    // here was doing.
+    // saturated hue holds its own between the off-white cap above it and the
+    // two near-black housings below, which is what the terracotta that used to
+    // be here was doing.
     //
     // Overridable per layer through `tint` — see below. The switch close-up
     // offers the usual four.
@@ -66,16 +66,16 @@ const PARTS = {
     env: 1.25,
   },
   upper: {
-    // `aluminium-gunmetal`. Warm mid-dark, the value step between the cream
+    // `aluminium-gunmetal`. Mid-dark, the value step between the off-white
     // above it and the near-black below.
-    color: "#4a4844",
+    color: "#46484c",
     metalness: 0.7,
     roughness: 0.45,
     env: 1.4,
   },
   lower: {
-    // `switch-plate`. Warm near-black: on the board this is the surface the
-    // caps sit in, and it is the right floor for the stack for the same
+    // `switch-plate`. Near-black: on the board this is the surface the caps
+    // sit in, and it is the right floor for the stack for the same
     // reason — it anchors the bottom without competing with anything above it.
     //
     // Colour, metalness and roughness are the board's numbers exactly. The
@@ -87,14 +87,14 @@ const PARTS = {
     // black hole in the page rather than as the bottom of the stack. Raising
     // what it can see is the honest fix; lightening the colour would have put
     // a fifth grey into a palette that has enough.
-    color: "#2b2a28",
+    color: "#292a2d",
     metalness: 0.35,
     roughness: 0.55,
     env: 1.7,
   },
   pins: {
     // `aluminium-silver`. The case metal, and the only metal on the site.
-    color: "#ababa3",
+    color: "#a8abaf",
     metalness: 0.6,
     roughness: 0.36,
     env: 1.5,

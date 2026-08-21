@@ -215,24 +215,39 @@ const GRADE: Record<
     emissiveIntensity?: number;
   }
 > = {
-  // Case shell. Warm light titanium: the old #8b9199 was a blue-grey, and on a
-  // black page next to near-white caps that blue is the single thing that made
-  // the render read as CG. Roughness comes down from 0.62 to a bead-blasted
-  // anodised 0.38 so the top rail carries the long soft highlight the
-  // reference has down its left edge.
+  // Case shell. Cool light titanium.
+  //
+  // This has been round the houses. It started at #8b9199, a blue-grey, which
+  // on a black page beside near-white caps was the single thing that made the
+  // render read as CG. The correction went to #ababa3 — and overshot: red and
+  // green level with blue eight points under them is not a warm silver, it is
+  // a khaki, and the board read olive.
+  //
+  // #a8abaf is the middle of those two. It sits four points to the COOL side
+  // of neutral rather than fourteen, which is the difference between anodised
+  // aluminium under a daylight lamp and a blue plastic prop. Green above red
+  // is what takes the khaki out; the spread across the three channels is seven
+  // points, where #8b9199 spent fourteen, so it stays a grey rather than
+  // becoming a colour.
+  //
+  // Roughness stays at the bead-blasted 0.36 so the top rail keeps the long
+  // soft highlight down its left edge.
   "aluminium-silver": {
-    color: "#ababa3",
+    color: "#a8abaf",
     metalness: 0.6,
     roughness: 0.36,
     env: 1.5,
   },
 
-  // Alphanumerics. Cream, not silver: warm off-white PBT with a semi-matte
-  // sheen. Metalness back to 0 — see the note above — and the sheen moved into
-  // roughness, which keeps the dye-sub legends dark instead of greying them
-  // out the way a metal fresnel does.
+  // Alphanumerics. Off-white PBT with a semi-matte sheen, a couple of points
+  // to the cool side of neutral — dye-sub PBT in daylight, rather than the
+  // cream #ece9e1 was. Cream is what a warm room does TO a white cap, and
+  // baking it into the base colour meant the caps carried the room twice: once
+  // here and again in everything they reflected. Metalness back to 0 — see the
+  // note above — and the sheen moved into roughness, which keeps the legends
+  // dark instead of greying them out the way a metal fresnel does.
   "keycap-offwhite": {
-    color: "#ece9e1",
+    color: "#e9eaed",
     metalness: 0,
     roughness: 0.42,
     env: 1.15,
@@ -273,19 +288,21 @@ const GRADE: Record<
   },
 
   // The plate under the caps. Stays near-black — it is a hole, not a surface —
-  // but warm-black rather than the authored blue-black, so the gaps between
-  // the caps do not read cold against them.
+  // and now tracks the caps instead of leaning against them: a few points cool,
+  // the same way they are, so the gaps read as shadow rather than as a
+  // different material.
   "switch-plate": {
-    color: "#2b2a28",
+    color: "#292a2d",
     metalness: 0.35,
     roughness: 0.55,
     env: 1,
   },
 
   // Inner floor and bottom weight. Barely seen from the front, graded only so
-  // it does not sit cold in the shadow between the plate and the shell.
+  // it belongs to the shell above it — which now means a touch cool rather
+  // than a touch warm.
   "aluminium-gunmetal": {
-    color: "#4a4844",
+    color: "#46484c",
     metalness: 0.7,
     roughness: 0.45,
     env: 1.4,
@@ -327,10 +344,7 @@ export function KeyboardReveal() {
     // `overflow-hidden` is load-bearing: the line field's box is deliberately
     // bigger than the section and rotated inside it, and this is what keeps
     // the overhang off the sections either side.
-    <section
-      ref={sectionRef}
-      className="relative h-[74svh] overflow-hidden"
-    >
+    <section ref={sectionRef} className="relative h-[74svh] overflow-hidden">
       {near && (
         <>
           {/* The hero's own line field, reused. It is opaque and repaints #000
@@ -527,7 +541,8 @@ function Scene({
   // at render time: it is being written to, and a value a hook handed back is
   // not this component's to mutate.
   useFrame((state) => {
-    const lit = EXPOSURE_DIM + (EXPOSURE_LIT - EXPOSURE_DIM) * tilt(progressRef);
+    const lit =
+      EXPOSURE_DIM + (EXPOSURE_LIT - EXPOSURE_DIM) * tilt(progressRef);
     state.gl.toneMappingExposure = lit * fadeRef.current;
   });
 
@@ -537,46 +552,56 @@ function Scene({
           (metalness tops out at 0.32), so punctual lights carry it and the
           environment below is there for the specular roll-off on the
           anodised case rather than to make the metal exist at all. */}
-      {/* Every colour in this rig was pulled back towards neutral by about a
-          third of its warmth. Warm it still is, and deliberately — the note on
-          the case material explains what a blue-grey board on a black page
-          looked like — but the case is metallic, and a metal is mostly
-          whatever it can see. What it could see was five warm sources at once,
-          which compounded into a cast the aluminium read as olive rather than
-          as silver in a warm room. The blue deficit of each one below is
-          roughly two thirds of what it was; the amber spill, which the case
-          takes the most of, came down furthest and lost a little intensity
-          with it. */}
+      {/* The rig is DAYLIGHT now, not a warm room.
+ 
+          A metal is mostly whatever it can see, and the case is metallic at
+          env 1.5 — so the lights here decide its colour more than its own
+          base colour does. That is why cooling the material table alone was
+          never going to be enough, and why the last pass, which pulled each
+          source back by a third and stopped there, left the board still
+          sitting in amber: five warm sources at two thirds strength are still
+          five warm sources.
+
+          So the balance is inverted instead of trimmed. Ambient, the broad
+          environment panel and the rim all cross to the cool side, and the
+          screen's amber spill — the single biggest warm contributor, because
+          it is the one saturated thing the case can see — is halved in
+          intensity and lifted towards cream.
+
+          What is deliberately KEPT is the split: the key stays on the warm
+          side of neutral and the fill stays cool. That opposition is most of
+          what reads as photographic rather than lit, and it survives being
+          moved wholesale towards daylight — it is the DIFFERENCE between the
+          two that does the work, not where the pair sits. The key's warmth is
+          down from twenty-two points of red-over-blue to seven; the fill's
+          coolness goes the other way, from twenty-five to thirty-eight, and
+          up in intensity, so the gap is wider than before while the average of
+          the two lands cool. */}
       {/* Ambient is TINTED and low. On a black page it is the one light with
           nowhere to fall off, so it is the fastest way to flatten a render —
           but a few points of it in the key light's own colour is what stops
           the shadow side going blue by default. */}
-      <ambientLight intensity={0.14} color="#fffcf9" />
+      <ambientLight intensity={0.14} color="#fafcff" />
       {/* Key: high and camera-left, so the keycap tops catch it while the
-          board is still tilted. Warm, around 5000K — this is the light doing
-          the grading, and every warm surface in the table above is warm
-          BECAUSE of what this returns off it. */}
-      <directionalLight
-        position={[-4, 6, 5]}
-        intensity={2.1}
-        color="#fff6e9"
-      />
+          board is still tilted. Still the warm half of the split, but barely —
+          a hair off white rather than the 5000K lamp it was. It is the light
+          doing the grading, so every point taken out of it comes off every
+          surface in the table above at once. */}
+      <directionalLight position={[-4, 6, 5]} intensity={2.1} color="#fdfaf6" />
       {/* Fill: opposite side, weak, keeps the shadow side off pure black —
           and deliberately COOL against a warm key. That split is most of what
           reads as photographic rather than lit; a warm fill under a warm key
           just raises the black point. */}
-      <directionalLight
-        position={[5, 1, 4]}
-        intensity={0.4}
-        color="#cfd8e8"
-      />
-      {/* Rim: behind and above, draws the top edge of the case out of the
-          page once the board is standing up. Warm again, so the edge belongs
-          to the same room as the key. */}
+      <directionalLight position={[5, 1, 4]} intensity={0.55} color="#c4d3ea" />
+      {/* Rim: behind and above, draws the top edge of the case out of the page
+          once the board is standing up. Crossed over to cool — at intensity
+          1.15 it is the second strongest source here, and it lands on the one
+          part of the case that is nothing BUT a highlight, so a warm rim was
+          putting amber on the exact edge that should read as machined metal. */}
       <directionalLight
         position={[0, 3, -6]}
         intensity={1.15}
-        color="#ffeeda"
+        color="#eff3fa"
       />
 
       {/* Rendered into a cubemap once, on mount — no HDR is fetched, so this
@@ -590,7 +615,7 @@ function Scene({
           intensity={2.2}
           position={[0, 3.2, 2.5]}
           scale={[10, 5, 1]}
-          color="#fffaf3"
+          color="#f8fbff"
         />
         {/* Low and camera-right, in the screen's own amber, roughly where the
             display sits on the board. It is not lighting the screen — the
@@ -598,15 +623,17 @@ function Scene({
             display would throw onto the shelf and the knobs beside it, which
             is what ties the one hot object on the board into the rest of it.
 
-            This replaces a chartreuse panel that put the brand's accent green
-            into the environment. It was the largest single source of the cool
-            cast: the case is metallic, so its colour is mostly whatever it can
-            see, and what it could see was green. */}
+            This replaced a chartreuse panel that put the brand's accent green
+            into the environment, and then became the same problem in the other
+            direction: it is the one SATURATED thing in the rig, the case is
+            metallic, and so the case wore it. Halved in intensity and lifted
+            from amber towards cream, it still reads as a display throwing light
+            on the shelf beside it without grading the whole board. */}
         <Lightformer
-          intensity={0.62}
+          intensity={0.34}
           position={[3.4, -1.2, 2.2]}
           scale={[3, 4, 1]}
-          color="#ffc98f"
+          color="#ffd6ae"
         />
       </Environment>
 
@@ -832,7 +859,10 @@ function useScrollProgress(
       if (vignetteRef.current) {
         const settled = Math.min(
           1,
-          Math.max(0, (tilt(progressRef) - VIGNETTE_HOLD) / (1 - VIGNETTE_HOLD)),
+          Math.max(
+            0,
+            (tilt(progressRef) - VIGNETTE_HOLD) / (1 - VIGNETTE_HOLD),
+          ),
         );
         const eased = 0.5 - Math.cos(Math.PI * settled) / 2;
         vignetteRef.current.style.opacity = String(1 - VIGNETTE_DROP * eased);

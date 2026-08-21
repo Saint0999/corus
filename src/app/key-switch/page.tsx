@@ -22,7 +22,10 @@ import {
  */
 
 /** How close to sit to each layer, in world units — roughly its own size. */
-const FOCUS: Record<PartName | "all", { part: PartName | null; distance: number }> = {
+const FOCUS: Record<
+  PartName | "all",
+  { part: PartName | null; distance: number }
+> = {
   all: { part: null, distance: 1.45 },
   keycap: { part: "keycap", distance: 0.42 },
   stem: { part: "stem", distance: 0.3 },
@@ -38,7 +41,9 @@ type FocusKey = keyof typeof FOCUS;
 const EYE = new Vector3(0.42, 0.26, 1).normalize();
 
 function Framing({ focus, explode }: { focus: FocusKey; explode: number }) {
-  const controls = useThree((state) => state.controls) as OrbitControlsImpl | null;
+  const controls = useThree(
+    (state) => state.controls,
+  ) as OrbitControlsImpl | null;
   const camera = useThree((state) => state.camera);
 
   useEffect(() => {
@@ -72,28 +77,50 @@ export default function KeySwitchPreview() {
         }}
         dpr={[1, 2]}
       >
-        <ambientLight intensity={0.14} color="#fff9f3" />
-        <directionalLight position={[-4, 6, 5]} intensity={2.1} color="#fff1dd" />
-        <directionalLight position={[5, 1, 4]} intensity={0.4} color="#cfd8e8" />
-        <directionalLight position={[0, 3, -6]} intensity={1.15} color="#ffe6c8" />
+        {/* The board's rig, third copy — see the original in KeyboardReveal.
+            This one had been left behind: it was still carrying the warm values
+            from before the hero was first pulled back, so the same switch was
+            lit hotter here than in the anatomy section. It renders the same
+            materials, so it gets the same light. */}
+        <ambientLight intensity={0.14} color="#fafcff" />
+        <directionalLight
+          position={[-4, 6, 5]}
+          intensity={2.1}
+          color="#fdfaf6"
+        />
+        <directionalLight
+          position={[5, 1, 4]}
+          intensity={0.55}
+          color="#c4d3ea"
+        />
+        <directionalLight
+          position={[0, 3, -6]}
+          intensity={1.15}
+          color="#eff3fa"
+        />
 
         <Environment resolution={128} frames={1}>
           <Lightformer
             intensity={2.2}
             position={[0, 3.2, 2.5]}
             scale={[10, 5, 1]}
-            color="#fff6ec"
+            color="#f8fbff"
           />
           <Lightformer
-            intensity={0.7}
+            intensity={0.34}
             position={[3.4, -1.2, 2.2]}
             scale={[3, 4, 1]}
-            color="#ffb46a"
+            color="#ffd6ae"
           />
         </Environment>
 
         <KeySwitch explode={explode} />
-        <OrbitControls makeDefault enablePan minDistance={0.12} maxDistance={6} />
+        <OrbitControls
+          makeDefault
+          enablePan
+          minDistance={0.12}
+          maxDistance={6}
+        />
         <Framing focus={focus} explode={explode} />
       </Canvas>
 
