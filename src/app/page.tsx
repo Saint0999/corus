@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Anatomy } from "@/components/anatomy/Anatomy";
+import { Footer } from "@/components/layout/Footer";
+import GradualBlur from "@/components/reactbits/GradualBlur";
 import { HeroVideo } from "@/components/hero/HeroVideo";
 import { KeyboardReveal } from "@/components/model/KeyboardReveal";
 import { SmoothScroll } from "@/components/scroll/SmoothScroll";
@@ -179,6 +181,48 @@ export default function HomePage() {
           Three rows of quotes tracking sideways, the middle one against the
           other two. Pure CSS — see the component. */}
       <TestimonialMarquee />
+
+      {/* --- Footer ---------------------------------------------------------
+          Rendered by this PAGE, not by the root layout. It closes the landing
+          page's argument — the display line, the price, the signup — and it is
+          not wanted on /customise or /features, which is what it was doing
+          when it lived in the shell.
+
+          Note this puts <footer> inside the layout's <main>. That reads oddly
+          for a SITE footer, and reads correctly for this one: scoped to a
+          single route, it is the footer OF this page rather than of the
+          document, which is exactly what the element means in this position. */}
+      <Footer />
+
+      {/* Page-level gradual blur: a band pinned to the bottom of the VIEWPORT
+          that stays there for the whole scroll, so content dissolves as it
+          reaches the bottom edge of the screen rather than running into it.
+          `target="page"` is what makes it `position: fixed` rather than
+          absolute — mounting it here rather than in the root layout changes
+          nothing about where it paints, only which routes get it.
+
+          It has to sit ABOVE the content to work at all: `backdrop-filter`
+          blurs whatever is painted behind it in stacking order, so a blur
+          layered underneath would have nothing to act on. The component adds
+          100 to `zIndex` for page targets, putting this at 1100.
+
+          Being on top does NOT make it swallow clicks: with no
+          `hoverIntensity` the component renders itself `pointer-events: none`,
+          so the hero CTA underneath stays clickable — blurred, not blocked.
+
+          Two things are measured against this band's 6rem and have to move
+          with it if it changes: the hero copy's `pb-28` above, and the
+          footer's `pb-28` bottom strip. */}
+      <GradualBlur
+        target="page"
+        position="bottom"
+        height="6rem"
+        strength={1.5}
+        divCount={5}
+        curve="bezier"
+        exponential
+        opacity={1}
+      />
     </>
   );
 }
