@@ -37,32 +37,47 @@ type KeyboardStageComponent =
  * of the frame has stopped being the point.
  *
  * This file is deliberately THREE-FREE — the board, its lighting rig and its
- * material grade live in `KeyboardStage.tsx`, `import()`-ed below only once
- * `near` is true. It used to be a plain top-of-file import, and the canvas
- * itself was already gated behind `useNearViewport` — but a plain import
- * still puts three.js, @react-three/fiber and @react-three/drei in the
- * bundle every reader of "/" downloads on first paint, because React has to
- * evaluate the module to know what NOT to render while `near` is false.
+ * material grade live in `KeyboardStage.tsx`, `import()`-ed below on an idle
+ * callback. It used to be a plain top-of-file import, and the canvas itself
+ * was already gated behind `useNearViewport` — but a plain import still puts
+ * three.js, @react-three/fiber and @react-three/drei in the bundle every
+ * reader of "/" downloads on first paint, because React has to evaluate the
+ * module to know what NOT to render while `near` is false.
  *
  * The obvious fix is `next/dynamic`, and it is the wrong one: Next's
  * build-time transform preloads a `dynamic()` component's chunk as soon as
- * its JSX reference exists ANYWHERE in the tree, regardless of the `{near &&
- * ...}` it is wrapped in — the whole point of the split, undone in one line,
+ * its JSX reference exists ANYWHERE in the tree, regardless of any condition
+ * it is wrapped in — the whole point of the split, undone in one line,
  * confirmed by watching the chunk request fire on a fresh load with no
- * scrolling. A plain `import()` called from inside the effect below has no
- * such static reference for Next to find, so it only ever runs once `near`
- * actually flips — which is what every comment on this component always
- * claimed and is now actually true.
+ * scrolling. A plain `import()` has no such static reference for Next to
+ * find, so it only ever runs when the code below actually calls it.
+ *
+ * FETCHING and MOUNTING are deliberately two separate triggers, not one:
+ *
+ *  - The `import()` itself fires on an idle callback, on mount, regardless of
+ *    scroll position — the same trigger `<Anatomy>`'s key-switch stage
+ *    already uses. This used to be tied to `near` instead, on the reasoning
+ *    that scrolling near the section was the earliest legitimate signal the
+ *    reader was headed here — which is true, but on this page that signal
+ *    arrives only a few hundred pixels of scroll before the section itself
+ *    does, nowhere near enough runway to fetch ~960 KB of three.js AND parse
+ *    the 1.5 MB model before the board needs to be on screen. The reader saw
+ *    the section arrive visibly empty. Idle-loading instead means the chunk
+ *    and the model are almost always sitting in cache, ready to mount
+ *    instantly, well before a reader who is still reading the hero and the
+ *    statement paragraph above ever scrolls this far — and it still costs a
+ *    reader who closes the tab during the hero nothing worse than a wasted
+ *    background fetch, not a blocked first paint, because it is scheduled
+ *    idle and code-split out of the critical bundle regardless.
+ *  - The Canvas is still only MOUNTED once `near` is true (see
+ *    `useNearViewport`) — GPU work (context creation, shader compilation) is
+ *    a genuinely different cost from a network fetch, and there is no reason
+ *    to pay it for a reader who never scrolls this far.
  *
  * Performance notes, because a WebGL canvas on a scrolling page is the easy
  * way to make a whole site feel heavy — see `KeyboardStage.tsx` for the ones
  * that live inside the canvas (`frameloop="demand"`, capped `dpr`, scroll
- * progress written to refs rather than state):
- *
- *  - The canvas — now the whole three.js chunk and the 1.5 MB model it
- *    preloads, with it — is only fetched once the section is anywhere near
- *    the viewport (see `useNearViewport`), so nothing here costs a reader who
- *    never scrolls this far a single byte.
+ * progress written to refs rather than state).
  */
 
 export function KeyboardReveal() {
@@ -82,9 +97,9 @@ export function KeyboardReveal() {
   const near = useNearViewport(sectionRef);
 
   /**
-   * The `<Canvas>` component itself, fetched only once `near` is true — see
-   * the note at the top of this file for why this is a plain `import()`
-   * inside an effect and not `next/dynamic`.
+   * The `<Canvas>` component itself. See the note at the top of this file:
+   * fetched on an idle callback regardless of scroll position, mounted only
+   * once `near` is true — two different triggers for two different costs.
    */
   const [Stage, setStage] = useState<ComponentType<{
     sectionRef: React.RefObject<HTMLElement | null>;
@@ -95,23 +110,37 @@ export function KeyboardReveal() {
   }> | null>(null);
 
   useEffect(() => {
-    if (!near) return;
-
     // Guards against setting state after a fetch that lands post-unmount —
     // this component never unmounts in practice, but the pattern is cheap
     // insurance against a warning that costs nothing to avoid.
     let cancelled = false;
 
-    import("@/components/model/KeyboardStage").then(
-      ({ KeyboardStage }: { KeyboardStage: KeyboardStageComponent }) => {
-        if (!cancelled) setStage(() => KeyboardStage);
-      },
-    );
+    const load = () => {
+      import("@/components/model/KeyboardStage").then(
+        ({ KeyboardStage }: { KeyboardStage: KeyboardStageComponent }) => {
+          if (!cancelled) setStage(() => KeyboardStage);
+        },
+      );
+    };
 
+    // Same idle-callback trigger `<Anatomy>` uses for its own 3D chunk: the
+    // one thing this must not do is compete with the hero's own first paint
+    // and its 3D canvas, and the timeout is the guarantee that "idle"
+    // eventually arrives on a page that never quite goes quiet.
+    if (typeof window.requestIdleCallback !== "function") {
+      const timer = window.setTimeout(load, 300);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+
+    const handle = window.requestIdleCallback(load, { timeout: 1500 });
     return () => {
       cancelled = true;
+      window.cancelIdleCallback(handle);
     };
-  }, [near]);
+  }, []);
 
   return (
     // `overflow-hidden` is load-bearing: the line field's box is deliberately
@@ -258,23 +287,28 @@ export function KeyboardReveal() {
 
 /**
  * True while the element is within a few hundred pixels of the fold, so the
- * canvas — and the model download behind it — is created just before it is
- * needed and not on page load.
+ * CANVAS — the GPU context, the shader compiles, the mesh upload — is only
+ * ever created just before it is needed, not on page load.
+ *
+ * This governs GPU work only, not the fetch any more (see the note at the
+ * top of this file for why those two are now separate triggers). It still
+ * matters on its own terms: mounting `<Canvas>` for a reader who is nowhere
+ * near this section would hold a WebGL context and run its render loop for
+ * no reason.
  *
  * `rootMargin` used to be a full extra viewport ("100% 0px"), which sounds
  * like the conservative choice and is actually the opposite of one: on this
  * page the hero is itself close to a full viewport tall, so a full extra
  * viewport of lead-in reaches back past the statement paragraph and covers
- * the fold ITSELF. The observer was firing — and the three.js chunk fetching
- * — at scroll position zero, on every ordinary screen, which is exactly what
- * this hook exists to prevent.
+ * the fold ITSELF — this was mounting the canvas at scroll position zero, on
+ * every ordinary screen, which is exactly what this hook exists to prevent.
  *
  * 320px is comfortably short of that: on every viewport height this was
  * checked against, the gap between the fold and this section's top is
  * 370–620px, so the section stays non-intersecting until the reader has
- * actually started scrolling towards it, while still leaving most of a
- * screen's worth of scroll for the chunk and the model to arrive before the
- * section is on screen to look empty.
+ * actually started scrolling towards it. By the time it does, the module
+ * fetched on idle above has almost always already landed, so the mount
+ * itself is the only cost left to pay — a GPU init, not a network round trip.
  *
  * It only ever flips false -> true. Tearing the context back down on the way
  * past would mean re-uploading every texture to the GPU on the way back, and
