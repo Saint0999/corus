@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     // from lint because reformatting them to our style would be exactly the
     // local modification we want to avoid — TypeScript still type-checks them.
     "src/components/originkit/**",
+    "src/components/reactbits/**",
   ]),
 ]);
 

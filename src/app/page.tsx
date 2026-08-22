@@ -86,8 +86,21 @@ export default function HomePage() {
           className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-2/5 bg-gradient-to-t from-surface via-surface/45 to-transparent"
         />
 
-        {/* Copy layer. `mt-auto` pins it to the bottom of the flex column. */}
-        <Container className="relative z-10 mt-auto pb-12">
+        {/* Copy layer. `mt-auto` pins it to the bottom of the flex column.
+            
+            `pb-28` (112px), not the 48px this used to have, and the number is
+            not a taste call: the root layout hangs a gradual blur across the
+            fixed bottom 6rem (96px) of the VIEWPORT, and the hero's own bottom
+            edge lands exactly on the viewport's — `min-h-[calc(100svh-4rem)]`
+            under `main`'s `pt-16` adds back to a full screen — so this padding
+            is measured against that band directly. At 48px the headline's CTA
+            and the spec line ended 48px INSIDE it and were rendered through
+            the blur; both sit at the same bottom edge because the row is
+            `sm:items-end`, so one value lifts the pair. 112px clears the band
+            with 16px to spare.
+
+            If that blur's `height` changes, this has to move with it. */}
+        <Container className="relative z-10 mt-auto pb-28">
           <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between sm:gap-12">
             {/* Bottom left: the headline. */}
             <div className="max-w-md">

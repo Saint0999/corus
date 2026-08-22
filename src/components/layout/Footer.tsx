@@ -215,7 +215,17 @@ export function Footer() {
           a mistake at any width past that. */}
       <div className="px-4 sm:px-6">
         <div
-          className="flex flex-col items-center gap-6 px-7 py-12
+          // `pb-28` rather than a symmetric `py-12`: the page-level gradual
+          // blur in the root layout is FIXED to the bottom 6rem (96px) of the
+          // viewport, and this strip is the last content in the document — so
+          // at maximum scroll it had nowhere left to go and sat inside that
+          // band permanently, leaving the footer nav and the press address
+          // blurred with no way to scroll them clear. Measured: the strip
+          // ended 52px above the fold against a 96px band. The extra bottom
+          // padding is scroll runway that lifts it out. It costs nothing
+          // visible, because the space it adds is black page sitting under the
+          // blur.
+          className="flex flex-col items-center gap-6 px-7 pt-12 pb-28
                      sm:flex-row sm:justify-between sm:px-12 lg:px-24"
         >
           <Logo />

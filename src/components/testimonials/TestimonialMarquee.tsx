@@ -3,6 +3,7 @@ import {
   type Segment,
 } from "@/components/text/StaggeredText";
 import { Container } from "@/components/ui/Container";
+import GradualBlur from "@/components/reactbits/GradualBlur";
 import { panelSurface } from "@/lib/styles";
 
 /**
@@ -338,16 +339,51 @@ function Edge({ side }: { side: "left" | "right" }) {
   const toward = side === "left" ? "right" : "left";
 
   return (
+    // The FADE half of the edge, and the fallback. A gradient from the page's
+    // own surface colour out to transparent is what makes a card leave rather
+    // than merely go soft, and it is all a browser without `backdrop-filter`
+    // is left with — a plain fade, no smear, still no hard edge.
+    //
+    // The width lives here, in Tailwind, rather than being handed to
+    // <GradualBlur>'s `responsive` prop. That prop would do the same job with a
+    // resize listener and its own 480/768/1024 breakpoints; this way the
+    // section keeps the site's real `sm` breakpoint and costs nothing to run.
     <div
       aria-hidden="true"
       className={`pointer-events-none absolute inset-y-0 ${
         side === "left" ? "left-0" : "right-0"
-      } w-16 backdrop-blur-[6px] sm:w-28`}
+      } w-16 sm:w-28`}
       style={{
         background: `linear-gradient(to ${toward}, var(--color-surface), transparent)`,
-        maskImage: `linear-gradient(to ${toward}, #000 30%, transparent)`,
-        WebkitMaskImage: `linear-gradient(to ${toward}, #000 30%, transparent)`,
       }}
-    />
+    >
+      {/* The BLUR half. This was a single `backdrop-blur-[6px]` pane masked to
+          fade inward, which blurs every card in the band by the same 6px and
+          then fades that one blur out — so a card crossed a visible threshold
+          into full blur and then dissolved. <GradualBlur> stacks five panes,
+          each masked to its own narrow strip and each blurred harder than the
+          last, so the blur RAMPS across the band and a card resolves out of it
+          continuously as it travels inward.
+
+          `width="100%"` makes it fill the responsive box above rather than
+          carry a fixed size of its own.
+
+          `zIndex={1}` is not optional. The component defaults to 1000, and an
+          absolutely-positioned child at that z-index escapes this wrapper —
+          `position: relative` with `z-index: auto` opens no stacking context —
+          to paint over the site's fixed z-50 header whenever this section
+          scrolls under it. */}
+      <GradualBlur
+        target="parent"
+        position={side}
+        width="100%"
+        strength={1.5}
+        divCount={5}
+        curve="bezier"
+        exponential
+        opacity={1}
+        zIndex={1}
+      />
+    </div>
   );
 }
