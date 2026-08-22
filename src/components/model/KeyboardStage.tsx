@@ -513,6 +513,7 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
   // itself on a window drag with no listener of our own.
   const viewport = useThree((state) => state.viewport);
   const invalidate = useThree((state) => state.invalidate);
+  const gl = useThree((state) => state.gl);
 
   // The two limits from FRAME_WIDTH / FRAME_HEIGHT, resolved into one span.
   // The height limit is solved for the board's top edge: the board sits
@@ -562,11 +563,14 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
 
     parent?.add(scene);
 
+    const maxAnisotropy = gl.capabilities.getMaxAnisotropy();
+
     scene.traverse((object) => {
       if (!(object instanceof Mesh)) return;
       const material: Material | Material[] = object.material;
       for (const one of Array.isArray(material) ? material : [material]) {
         grade(one);
+        sharpen(one, maxAnisotropy);
         edgeFalloff(one);
       }
     });
@@ -584,7 +588,7 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
     // the reader is not scrolling — they are still in the hero, which is
     // exactly the dead time this is meant to use.
     invalidate();
-  }, [scene, invalidate]);
+  }, [scene, invalidate, gl]);
 
   useFrame(() => {
     const group = groupRef.current;
@@ -601,6 +605,47 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
       <primitive object={scene} />
     </group>
   );
+}
+
+/**
+ * Turns on anisotropic filtering for a material's textures.
+ *
+ * This is the difference between legible legends and mush, and it is worth
+ * being clear about why, because "the texture is 2048x2048" sounds like it
+ * should already be plenty.
+ *
+ * The keycap atlas is 2048 square. The caps it lands on span a few hundred
+ * pixels of screen, so the texture is heavily MINIFIED — many texels per
+ * pixel — and the sampler resolves that by dropping down the mip chain. That
+ * is correct and necessary; without mipmaps the legends would crawl and
+ * shimmer as the board turns. The problem is that a mip level is chosen from a
+ * single number, and a keycap under this camera is compressed far harder
+ * vertically than horizontally: through most of the reveal the board is tilted
+ * (TILT_START is 64 degrees) and the caps are seen at a glancing angle. An
+ * isotropic sampler has to pick one mip for both axes, so it takes the blurrier
+ * one and the legends soften across the whole board.
+ *
+ * Anisotropic filtering is exactly the fix: it takes multiple samples along the
+ * axis of greater compression, so the horizontal detail survives at the mip the
+ * vertical axis needs. `getMaxAnisotropy()` reports what the GPU actually
+ * supports (typically 16), and three silently clamps to that, so asking for the
+ * maximum is safe on hardware that offers less.
+ *
+ * Idempotent, and deliberately so: textures come out of `useGLTF`'s shared
+ * cache and outlive this component, exactly like the materials `grade` guards
+ * against. The early return keeps a remount from re-flagging `needsUpdate` and
+ * re-uploading both textures to the GPU for no reason.
+ */
+function sharpen(material: Material, maxAnisotropy: number) {
+  if (!(material instanceof MeshStandardMaterial)) return;
+
+  for (const map of [material.map, material.emissiveMap]) {
+    if (!map || map.anisotropy === maxAnisotropy) continue;
+    map.anisotropy = maxAnisotropy;
+    // Anisotropy is a sampler parameter, so the texture has to be re-uploaded
+    // for it to take effect. Once, on first grade.
+    map.needsUpdate = true;
+  }
 }
 
 /**
