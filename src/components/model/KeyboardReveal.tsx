@@ -37,12 +37,12 @@ type KeyboardStageComponent =
  * of the frame has stopped being the point.
  *
  * This file is deliberately THREE-FREE — the board, its lighting rig and its
- * material grade live in `KeyboardStage.tsx`, `import()`-ed below on an idle
- * callback. It used to be a plain top-of-file import, and the canvas itself
- * was already gated behind `useNearViewport` — but a plain import still puts
- * three.js, @react-three/fiber and @react-three/drei in the bundle every
- * reader of "/" downloads on first paint, because React has to evaluate the
- * module to know what NOT to render while `near` is false.
+ * material grade live in `KeyboardStage.tsx`, `import()`-ed below as soon as
+ * this component mounts. It used to be a plain top-of-file import, and the
+ * canvas itself was already gated behind `useNearViewport` — but a plain
+ * import still puts three.js, @react-three/fiber and @react-three/drei in
+ * the bundle every reader of "/" downloads on first paint, because React has
+ * to evaluate the module to know what NOT to render while `near` is false.
  *
  * The obvious fix is `next/dynamic`, and it is the wrong one: Next's
  * build-time transform preloads a `dynamic()` component's chunk as soon as
@@ -54,21 +54,23 @@ type KeyboardStageComponent =
  *
  * FETCHING and MOUNTING are deliberately two separate triggers, not one:
  *
- *  - The `import()` itself fires on an idle callback, on mount, regardless of
- *    scroll position — the same trigger `<Anatomy>`'s key-switch stage
- *    already uses. This used to be tied to `near` instead, on the reasoning
- *    that scrolling near the section was the earliest legitimate signal the
- *    reader was headed here — which is true, but on this page that signal
- *    arrives only a few hundred pixels of scroll before the section itself
- *    does, nowhere near enough runway to fetch ~960 KB of three.js AND parse
- *    the 1.5 MB model before the board needs to be on screen. The reader saw
- *    the section arrive visibly empty. Idle-loading instead means the chunk
- *    and the model are almost always sitting in cache, ready to mount
- *    instantly, well before a reader who is still reading the hero and the
- *    statement paragraph above ever scrolls this far — and it still costs a
- *    reader who closes the tab during the hero nothing worse than a wasted
- *    background fetch, not a blocked first paint, because it is scheduled
- *    idle and code-split out of the critical bundle regardless.
+ *  - The `import()` itself fires the instant this component's mount effect
+ *    runs — the earliest point a Client Component gets to do anything, and
+ *    about as close to "preload on page load" as JavaScript can get. This
+ *    used to wait for an idle callback (mirroring `<Anatomy>`'s key-switch
+ *    stage), on the reasoning that nothing should compete with the hero's own
+ *    first paint. But the `import()` call does not block the main thread —
+ *    it only enqueues a network request for a chunk already code-split out
+ *    of the critical bundle — so there was nothing here for the hero to
+ *    compete WITH, and the idle wait was pure lost lead time: on a busy
+ *    device `requestIdleCallback` can legitimately sit for its full 1500 ms
+ *    timeout before firing, which is most of the runway a reader gets before
+ *    reaching the board on an ordinary scroll. Firing immediately means the
+ *    chunk and the 1.5 MB model are fetching from the first possible moment,
+ *    maximising the chance both have landed before the reader scrolls this
+ *    far — and it still costs a reader who closes the tab during the hero
+ *    nothing worse than one wasted background request, not a blocked first
+ *    paint.
  *  - The Canvas is still only MOUNTED once `near` is true (see
  *    `useNearViewport`) — GPU work (context creation, shader compilation) is
  *    a genuinely different cost from a network fetch, and there is no reason
@@ -98,8 +100,9 @@ export function KeyboardReveal() {
 
   /**
    * The `<Canvas>` component itself. See the note at the top of this file:
-   * fetched on an idle callback regardless of scroll position, mounted only
-   * once `near` is true — two different triggers for two different costs.
+   * fetched as soon as this component mounts, regardless of scroll position,
+   * mounted only once `near` is true — two different triggers for two
+   * different costs.
    */
   const [Stage, setStage] = useState<ComponentType<{
     sectionRef: React.RefObject<HTMLElement | null>;
@@ -115,30 +118,23 @@ export function KeyboardReveal() {
     // insurance against a warning that costs nothing to avoid.
     let cancelled = false;
 
-    const load = () => {
-      import("@/components/model/KeyboardStage").then(
-        ({ KeyboardStage }: { KeyboardStage: KeyboardStageComponent }) => {
-          if (!cancelled) setStage(() => KeyboardStage);
-        },
-      );
-    };
+    // Fired the moment this effect commits — the earliest a Client Component
+    // gets to run anything, and as close to "the instant the site loads" as
+    // JavaScript can start a fetch. This used to wait for an idle callback,
+    // on the reasoning that nothing should compete with the hero's own first
+    // paint; the `import()` call itself does not block anything, though — it
+    // only enqueues a network request, on a chunk already code-split out of
+    // the critical bundle, so there is nothing here for the hero to compete
+    // WITH. Waiting for idle was buying a guarantee nothing needed at the
+    // cost of the board's own lead time.
+    import("@/components/model/KeyboardStage").then(
+      ({ KeyboardStage }: { KeyboardStage: KeyboardStageComponent }) => {
+        if (!cancelled) setStage(() => KeyboardStage);
+      },
+    );
 
-    // Same idle-callback trigger `<Anatomy>` uses for its own 3D chunk: the
-    // one thing this must not do is compete with the hero's own first paint
-    // and its 3D canvas, and the timeout is the guarantee that "idle"
-    // eventually arrives on a page that never quite goes quiet.
-    if (typeof window.requestIdleCallback !== "function") {
-      const timer = window.setTimeout(load, 300);
-      return () => {
-        cancelled = true;
-        window.clearTimeout(timer);
-      };
-    }
-
-    const handle = window.requestIdleCallback(load, { timeout: 1500 });
     return () => {
       cancelled = true;
-      window.cancelIdleCallback(handle);
     };
   }, []);
 
@@ -307,7 +303,7 @@ export function KeyboardReveal() {
  * checked against, the gap between the fold and this section's top is
  * 370–620px, so the section stays non-intersecting until the reader has
  * actually started scrolling towards it. By the time it does, the module
- * fetched on idle above has almost always already landed, so the mount
+ * fetched on mount above has almost always already landed, so the mount
  * itself is the only cost left to pay — a GPU init, not a network round trip.
  *
  * It only ever flips false -> true. Tearing the context back down on the way
