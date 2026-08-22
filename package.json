@@ -5,8 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prebuild": "node scripts/optimize-model.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "model:layout": "node scripts/patch-keyboard-layout.mjs",
+    "model:build": "node scripts/optimize-model.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -18,6 +21,9 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -25,6 +31,8 @@
     "@types/three": "^0.185.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "meshoptimizer": "^1.2.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

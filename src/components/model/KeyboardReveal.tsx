@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import { preload } from "react-dom";
 import { ReactiveLinesBackdrop } from "@/components/hero/ReactiveLinesBackdrop";
+import { MODEL_URL } from "@/components/model/modelUrl";
 
 // A TYPE, not a value: `typeof import(...)` is erased entirely at compile
 // time, so this line — unlike a real `import` of the module — does not pull
@@ -38,11 +40,13 @@ type KeyboardStageComponent =
  *
  * This file is deliberately THREE-FREE — the board, its lighting rig and its
  * material grade live in `KeyboardStage.tsx`, `import()`-ed below as soon as
- * this component mounts. It used to be a plain top-of-file import, and the
- * canvas itself was already gated behind `useNearViewport` — but a plain
- * import still puts three.js, @react-three/fiber and @react-three/drei in
- * the bundle every reader of "/" downloads on first paint, because React has
- * to evaluate the module to know what NOT to render while `near` is false.
+ * this component mounts. It used to be a plain top-of-file import, which put
+ * three.js, @react-three/fiber and @react-three/drei in the bundle every
+ * reader of "/" downloads on first paint, four screens before any of it is
+ * needed. Splitting the CODE out is still worth it even though the canvas is
+ * now mounted at load: the chunk arrives on its own connection, in parallel,
+ * instead of making the hero's own scripts queue behind a megabyte of
+ * renderer.
  *
  * The obvious fix is `next/dynamic`, and it is the wrong one: Next's
  * build-time transform preloads a `dynamic()` component's chunk as soon as
@@ -54,27 +58,61 @@ type KeyboardStageComponent =
  *
  * FETCHING and MOUNTING are deliberately two separate triggers, not one:
  *
- *  - The `import()` itself fires the instant this component's mount effect
- *    runs — the earliest point a Client Component gets to do anything, and
- *    about as close to "preload on page load" as JavaScript can get. This
- *    used to wait for an idle callback (mirroring `<Anatomy>`'s key-switch
- *    stage), on the reasoning that nothing should compete with the hero's own
- *    first paint. But the `import()` call does not block the main thread —
- *    it only enqueues a network request for a chunk already code-split out
- *    of the critical bundle — so there was nothing here for the hero to
- *    compete WITH, and the idle wait was pure lost lead time: on a busy
- *    device `requestIdleCallback` can legitimately sit for its full 1500 ms
- *    timeout before firing, which is most of the runway a reader gets before
- *    reaching the board on an ordinary scroll. Firing immediately means the
- *    chunk and the 1.5 MB model are fetching from the first possible moment,
- *    maximising the chance both have landed before the reader scrolls this
- *    far — and it still costs a reader who closes the tab during the hero
- *    nothing worse than one wasted background request, not a blocked first
- *    paint.
- *  - The Canvas is still only MOUNTED once `near` is true (see
- *    `useNearViewport`) — GPU work (context creation, shader compilation) is
- *    a genuinely different cost from a network fetch, and there is no reason
- *    to pay it for a reader who never scrolls this far.
+ *  - The MODEL's bytes are fetched by the `preload()` call in the component
+ *    body below, which is a `<link rel="preload">` in the server-rendered
+ *    HTML — found by the browser's preload scanner before a line of our
+ *    JavaScript has run, let alone hydrated.
+ *  - The CODE chunk is fetched by the `import()` in the mount effect — the
+ *    earliest point a Client Component gets to do anything. This used to wait
+ *    for an idle callback (mirroring `<Anatomy>`'s key-switch stage), on the
+ *    reasoning that nothing should compete with the hero's own first paint.
+ *    But the `import()` call does not block the main thread — it only
+ *    enqueues a network request for a chunk already code-split out of the
+ *    critical bundle — so there was nothing here for the hero to compete
+ *    WITH, and the idle wait was pure lost lead time: on a busy device
+ *    `requestIdleCallback` can legitimately sit for its full 1500 ms timeout
+ *    before firing, which is most of the runway a reader gets before reaching
+ *    the board on an ordinary scroll.
+ *
+ *    Splitting those two apart is the whole point, and it is worth being
+ *    precise about WHY, because getting it wrong is invisible in every
+ *    profile taken on a fast connection. `KeyboardStage.tsx` ends with a
+ *    module-scope `useGLTF.preload(MODEL_URL)`, and for a while that was the
+ *    only thing fetching the model. Module scope means it runs when the
+ *    module RUNS — so the sequence was: hydrate, then request the ~260 kB
+ *    (gzipped) three.js chunk, then wait for it to arrive, then parse and
+ *    execute it, and only THEN start asking for a ~300 kB model. Three
+ *    dependent round trips deep, when nothing about the .glb depends on any
+ *    of them: it is a static file at a URL known at build time. Measured
+ *    against a production build on localhost — where transfer time is
+ *    essentially zero and only the chaining shows — the chunk started at
+ *    86 ms and the model not until 128 ms. Put that same chain on a phone
+ *    connection and each link costs a round trip plus its transfer, which is
+ *    how a model that used to be ready on arrival turns into one the reader
+ *    watches load.
+ *
+ *    The `preload()` below cuts the model out of that chain entirely. It now
+ *    starts in parallel with the page's own scripts, and `useGLTF.preload()`
+ *    stays where it is: by the time the chunk executes, the bytes are already
+ *    in the browser's preload cache, so it goes straight to decoding them.
+ *  - The Canvas is MOUNTED as soon as that chunk resolves, at page load,
+ *    with no scroll condition on it at all. It used to wait for a
+ *    `useNearViewport` check, on the reasoning that GPU work (context
+ *    creation, shader compilation, mesh upload) is a different cost from a
+ *    network fetch and should not be paid by a reader who never scrolls this
+ *    far. That is true as far as it goes, and it is beside the point: the
+ *    reader who DOES scroll this far is the one the section exists for, and
+ *    making them wait at the moment of arrival — for the exact work that
+ *    could have been done while they read the hero — is the whole complaint.
+ *    Warming everything at load means that by the time the board comes up the
+ *    screen there is nothing left to do but draw a frame.
+ *
+ *    Mounting early would ordinarily hand back the cost it saves, because
+ *    `useScrollProgress` invalidates the canvas on every scroll frame and a
+ *    mounted canvas would therefore re-render the board through the whole
+ *    hero. It does not, because that hook now skips `invalidate()` while the
+ *    section is off screen — see the note on it in `KeyboardStage.tsx`. The
+ *    canvas is warm from load and idle until it is looked at.
  *
  * Performance notes, because a WebGL canvas on a scrolling page is the easy
  * way to make a whole site feel heavy — see `KeyboardStage.tsx` for the ones
@@ -83,6 +121,33 @@ type KeyboardStageComponent =
  */
 
 export function KeyboardReveal() {
+  /**
+   * Start the model downloading from the HTML itself.
+   *
+   * Called during render, not in an effect, and that is the entire point:
+   * this component is server-rendered as part of the static "/" document, so
+   * React emits the hint as a `<link rel="preload">` in the streamed <head>.
+   * The preload scanner acts on it while the HTML is still being parsed —
+   * before hydration, before the `import()` in the effect below, and long
+   * before anything three.js-shaped has been evaluated. The model's ~300 kB
+   * then transfers alongside the page's own scripts instead of queueing
+   * behind them.
+   *
+   * `as: "fetch"` because that is how the bytes are eventually asked for:
+   * three's `FileLoader` runs a plain same-origin `fetch()` under
+   * `useGLTF`. The `as` has to match the real request for the browser to hand
+   * over the preloaded response rather than fetching the file a second time —
+   * `as: "image"` or a bare hint would download 300 kB twice and be slower
+   * than doing nothing at all.
+   *
+   * React dedupes by href, so calling this on every render costs one map
+   * lookup and emits one tag. It is scoped to this component rather than the
+   * layout on purpose: "/" is the only route that renders the board, and a
+   * preload in the shell would pull the model down on /about and /features
+   * too — the same trap `edgeFalloff.ts` was split out of the way of.
+   */
+  preload(MODEL_URL, { as: "fetch" });
+
   const sectionRef = useRef<HTMLElement>(null);
   /**
    * How far the section has travelled through the viewport: 0 as its top
@@ -96,13 +161,11 @@ export function KeyboardReveal() {
   const glowRef = useRef<HTMLDivElement>(null);
   /** The vignette, lifted by that same rAF once the board is square-on. */
   const vignetteRef = useRef<HTMLDivElement>(null);
-  const near = useNearViewport(sectionRef);
 
   /**
-   * The `<Canvas>` component itself. See the note at the top of this file:
-   * fetched as soon as this component mounts, regardless of scroll position,
-   * mounted only once `near` is true — two different triggers for two
-   * different costs.
+   * The `<Canvas>` component itself, fetched as soon as this component mounts
+   * and rendered the moment it lands — no scroll condition on either step.
+   * See the note at the top of this file.
    */
   const [Stage, setStage] = useState<ComponentType<{
     sectionRef: React.RefObject<HTMLElement | null>;
@@ -143,8 +206,6 @@ export function KeyboardReveal() {
     // bigger than the section and rotated inside it, and this is what keeps
     // the overhang off the sections either side.
     <section ref={sectionRef} className="relative h-[74svh] overflow-hidden">
-      {near && (
-        <>
           {/* The hero's own line field, reused. It is opaque and repaints #000
               every frame, so it has to be the bottom layer — the 3D canvas
               above it is transparent and composites straight onto it.
@@ -236,20 +297,19 @@ export function KeyboardReveal() {
             }}
           />
 
-          {/* `null` for the brief window between `near` flipping and the
-              chunk's fetch/parse landing — the backdrop and glow above are
-              already up, so this reads as the board fading in a beat later
-              rather than as anything missing. */}
-          {Stage && (
-            <Stage
-              sectionRef={sectionRef}
-              progressRef={progressRef}
-              fadeRef={fadeRef}
-              glowRef={glowRef}
-              vignetteRef={vignetteRef}
-            />
-          )}
-        </>
+      {/* `null` only for the window between this component mounting and the
+          chunk's fetch/parse landing — a fraction of a second at page load,
+          four screens above where anyone can see it. By the time the section
+          is reachable the canvas has long since mounted, drawn its first
+          frame, and gone idle. */}
+      {Stage && (
+        <Stage
+          sectionRef={sectionRef}
+          progressRef={progressRef}
+          fadeRef={fadeRef}
+          glowRef={glowRef}
+          vignetteRef={vignetteRef}
+        />
       )}
 
       {/* Vignette. A CSS gradient rather than a post-processing pass: it is
@@ -279,57 +339,4 @@ export function KeyboardReveal() {
       />
     </section>
   );
-}
-
-/**
- * True while the element is within a few hundred pixels of the fold, so the
- * CANVAS — the GPU context, the shader compiles, the mesh upload — is only
- * ever created just before it is needed, not on page load.
- *
- * This governs GPU work only, not the fetch any more (see the note at the
- * top of this file for why those two are now separate triggers). It still
- * matters on its own terms: mounting `<Canvas>` for a reader who is nowhere
- * near this section would hold a WebGL context and run its render loop for
- * no reason.
- *
- * `rootMargin` used to be a full extra viewport ("100% 0px"), which sounds
- * like the conservative choice and is actually the opposite of one: on this
- * page the hero is itself close to a full viewport tall, so a full extra
- * viewport of lead-in reaches back past the statement paragraph and covers
- * the fold ITSELF — this was mounting the canvas at scroll position zero, on
- * every ordinary screen, which is exactly what this hook exists to prevent.
- *
- * 320px is comfortably short of that: on every viewport height this was
- * checked against, the gap between the fold and this section's top is
- * 370–620px, so the section stays non-intersecting until the reader has
- * actually started scrolling towards it. By the time it does, the module
- * fetched on mount above has almost always already landed, so the mount
- * itself is the only cost left to pay — a GPU init, not a network round trip.
- *
- * It only ever flips false -> true. Tearing the context back down on the way
- * past would mean re-uploading every texture to the GPU on the way back, and
- * the reader is one flick of the wheel from doing exactly that.
- */
-function useNearViewport(ref: React.RefObject<HTMLElement | null>) {
-  const [near, setNear] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || near) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setNear(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "320px 0px" },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [ref, near]);
-
-  return near;
 }

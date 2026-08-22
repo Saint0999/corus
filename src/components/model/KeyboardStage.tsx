@@ -15,6 +15,7 @@ import {
   Vector3,
 } from "three";
 import { edgeFalloff } from "@/components/model/edgeFalloff";
+import { MODEL_URL } from "@/components/model/modelUrl";
 
 /**
  * The actual 3D board — everything that touches three.js, @react-three/fiber
@@ -22,10 +23,10 @@ import { edgeFalloff } from "@/components/model/edgeFalloff";
  * file renders unconditionally on "/", and a static import of this module
  * from there would put the whole three.js stack (and the 1.5 MB model this
  * file preloads) in every homepage visitor's initial bundle — four screens
- * before any of it is needed. `KeyboardReveal.tsx` now loads this component
- * through `next/dynamic`, gated behind the same `useNearViewport` check that
- * used to only defer the CANVAS, so the chunk itself follows the reader
- * rather than arriving with the hero.
+ * before any of it is needed. `KeyboardReveal.tsx` now pulls this component in
+ * through a bare `import()` (NOT `next/dynamic` — see the note there for why
+ * that distinction matters), so the chunk itself follows the reader rather
+ * than arriving with the hero.
  *
  * Everything in this file is otherwise unchanged from before the split — see
  * `KeyboardReveal.tsx` for the composition this sits inside of, and the doc
@@ -33,8 +34,27 @@ import { edgeFalloff } from "@/components/model/edgeFalloff";
  * "demand", scroll progress written to refs rather than state, capped `dpr`).
  */
 
-/** Where the model sits in its own file: flat, top face up, ~33 cm wide. */
-const MODEL_URL = "/models/corus-keyboard.glb";
+// The model file itself — flat, top face up, ~33 cm wide in its own space.
+// Imported rather than declared here so <KeyboardReveal> can preload the same
+// URL without importing this (three-heavy) module. See `modelUrl.ts`.
+
+/**
+ * Loader configuration, as `[useDraco, useMeshopt]` — passed identically to
+ * `useGLTF` and to its `preload`, so both resolve to the same cache entry.
+ *
+ * Draco OFF. drei defaults it ON, and an enabled DRACOLoader points at a
+ * `gstatic.com` CDN for its ~200 kB WebAssembly decoder. Nothing fetches it
+ * while the model carries no Draco payload, but leaving it armed means one
+ * re-export with the wrong exporter flag silently adds a third-party request
+ * to the model's critical path. The build pipeline commits to meshopt (see
+ * `scripts/optimize-model.mjs`), so say so here.
+ *
+ * Meshopt ON — which is also drei's default, but this file depends on it
+ * rather than merely tolerating it: the served .glb is EXT_meshopt_compression
+ * encoded and will not load without it. Its decoder is bundled inside
+ * `three-stdlib`, already in this chunk, so it costs no request.
+ */
+const LOADER_ARGS = [false, true] as const;
 
 /**
  * Rotation about X, in degrees. 0 is flat on a desk, 90 is face-on.
@@ -478,7 +498,7 @@ function Scene({
 }
 
 function Board({ progressRef }: { progressRef: RefObject<number> }) {
-  const { scene } = useGLTF(MODEL_URL);
+  const { scene } = useGLTF(MODEL_URL, ...LOADER_ARGS);
   const groupRef = useRef<Group>(null);
 
   /**
@@ -492,6 +512,7 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
   // r3f recomputes this whenever the canvas resizes, so the board re-frames
   // itself on a window drag with no listener of our own.
   const viewport = useThree((state) => state.viewport);
+  const invalidate = useThree((state) => state.invalidate);
 
   // The two limits from FRAME_WIDTH / FRAME_HEIGHT, resolved into one span.
   // The height limit is solved for the board's top edge: the board sits
@@ -549,7 +570,21 @@ function Board({ progressRef }: { progressRef: RefObject<number> }) {
         edgeFalloff(one);
       }
     });
-  }, [scene]);
+
+    // Draw a frame now that there is actually something to draw.
+    //
+    // The canvas mounts at page load, but <Board> is inside <Suspense> and
+    // `useGLTF` suspends until the .glb has landed, so the frame forced when
+    // the scroll hook set up rendered an EMPTY scene — a GL context and not
+    // much else. This is the frame that does the expensive half: compiling
+    // the graded materials' programs (each one is a patched shader, see
+    // `edgeFalloff`) and uploading the geometry and textures to the GPU.
+    //
+    // Under `frameloop="demand"` nothing would otherwise redraw here, because
+    // the reader is not scrolling — they are still in the hero, which is
+    // exactly the dead time this is meant to use.
+    invalidate();
+  }, [scene, invalidate]);
 
   useFrame(() => {
     const group = groupRef.current;
@@ -703,14 +738,35 @@ function useScrollProgress(
         vignetteRef.current.style.opacity = String(1 - VIGNETTE_DROP * eased);
       }
 
-      invalidate();
+      // Draw ONLY while the section is somewhere on screen.
+      //
+      // This gate is what makes mounting the canvas at page load affordable.
+      // The refs above are updated on every scroll frame regardless — they are
+      // arithmetic on a rect and two writes to a style property, and keeping
+      // them current means the first frame after the section appears is
+      // already correct rather than a frame behind. What is skipped is the
+      // WebGL draw, which is the part that actually costs something, and which
+      // there is no reason to pay while the board is four screens away.
+      //
+      // Without this, a canvas mounted from load would re-render the board on
+      // every scroll frame through the entire hero — handing straight back the
+      // cost that mounting early was meant to save.
+      if (rect.bottom > 0 && rect.top < vh) invalidate();
     };
 
     const onScroll = () => {
       if (frame === 0) frame = requestAnimationFrame(measure);
     };
 
+    // Fill the refs for wherever the reader has actually landed (a reload
+    // partway down the page, or a jump to an anchor), then force ONE frame
+    // whether or not the section is on screen. That first frame is the point
+    // of mounting early: it is what creates the GL context, compiles this
+    // scene's shaders and uploads the geometry, so arriving at the section
+    // later costs nothing but a redraw. It renders black — the exposure
+    // starts at 0 and the fade has not begun — so warming up is invisible.
     measure();
+    invalidate();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
 
@@ -722,4 +778,15 @@ function useScrollProgress(
   }, [sectionRef, progressRef, fadeRef, glowRef, vignetteRef, invalidate]);
 }
 
-useGLTF.preload(MODEL_URL);
+/**
+ * Warm drei's GLTF cache the moment this chunk executes, so the parse and the
+ * GPU upload are done before <Board> ever mounts.
+ *
+ * This is NOT what gets the model off the network in good time — it cannot
+ * be, since nothing here runs until the chunk it lives in has been fetched
+ * and evaluated. `<KeyboardReveal>` preloads the bytes from the HTML for
+ * that. By the time this line runs they are already in the preload cache and
+ * this is a decode, not a download. Both are wanted; only one of them can
+ * happen this late.
+ */
+useGLTF.preload(MODEL_URL, ...LOADER_ARGS);
