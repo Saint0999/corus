@@ -190,7 +190,12 @@ const SUBHEADING: readonly Segment[] = [
 
 export function TestimonialMarquee() {
   return (
-    <section className="py-20 sm:py-28">
+    // Asymmetric padding, and only at the BOTTOM. The top keeps the site's
+    // standard section rhythm so this block sits correctly under the one
+    // before it; the bottom is trimmed because what follows is the footer
+    // lozenge, which brings its own top padding — two full section paddings
+    // stacked put 176px of dead black between the last card and the pill.
+    <section className="pt-20 pb-12 sm:pt-28 sm:pb-16">
       {/* The heading is inside the page gutter; the rows below deliberately
           are not, because a marquee that starts and stops at the text measure
           reads as a widget rather than as something passing through. */}

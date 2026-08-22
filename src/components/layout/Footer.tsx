@@ -67,7 +67,13 @@ const PRICE_FROM = new Intl.NumberFormat("en-GB", {
  */
 export function Footer() {
   return (
-    <footer className="bg-surface pt-16">
+    // `pt-6` rather than `pt-16`. This padding is not the gap above the
+    // lozenge — it is only the FOOTER'S half of it. Whatever section ends the
+    // page brings its own bottom padding, and the two add up, so 64px here was
+    // buying a 176px void on the home page. It is kept non-zero on purpose,
+    // as a floor: the footer is in the root layout and has to sit under
+    // whatever any route happens to end with.
+    <footer className="bg-surface pt-6">
       {/* FULL BLEED, deliberately outside <Container>.
 
           Every other block on the site is capped at the shared measure
